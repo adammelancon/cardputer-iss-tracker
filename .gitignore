@@ -1,0 +1,47 @@
+.pio
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+
+
+# PlatformIO build / cache
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# VS Code
+.vscode/.browse.c_cpp.db*
+.vscode/.browse.c_cpp.db*
+.vscode/launch.json
+.vscode/ipch
+
+# OS cruft
+*.log
+.DS_Store
+Thumbs.db
+
+# If you let PlatformIO manage lib_deps
+.libdeps/
+
+src/credentials.h
+
+
+# Build artifacts / firmware
+bin
+*.bin
+.build/
+.build-*
+
+# VS Code / platformio / general
+.vscode/
+.pio/
+.idea/
+.DS_Store
+
+# Local config with secrets
+config_local.h
+secrets.h
+wifi_secrets.h
