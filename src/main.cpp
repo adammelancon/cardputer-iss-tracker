@@ -19,6 +19,13 @@ String wifiPass = WIFI_PSK;
 #define SD_SPI_MOSI_PIN 14
 #define SD_SPI_CS_PIN   12
 
+// ----------- Define Colors ------------
+#define COL_BG        0x0000  // black
+#define COL_ACCENT    0x0018  // deep NASA blue
+#define COL_TEXT      0xDFFF  // ice-blue white
+#define COL_HEADER    0xFDB4  // NASA gold/orange
+
+
 // ---------- Paths / WiFi / NTP ----------
 const char *ISS_TLE_PATH = "/apps/iss_tracker/iss.tle";
 
@@ -262,20 +269,20 @@ bool downloadTLEToSD() {
 void drawHomeScreen() {
     auto &d = M5Cardputer.Display;
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
-
+    d.setTextColor(COL_HEADER);
     d.println("   ISS Tracker");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("   -----------");
-
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
     d.println("Top Btn (G0): switch");
@@ -285,13 +292,19 @@ void drawHomeScreen() {
 
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("HOME    - this help");
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("LIVE    - ISS position");
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("OPTIONS - TLE info");
+    d.setTextColor(COL_TEXT);
 
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
@@ -310,18 +323,20 @@ void drawHomeScreen() {
 void drawLiveScreen() {
     auto &d = M5Cardputer.Display;
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("     ISS Live Position");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("     -----------------");
+    d.setTextColor(COL_TEXT);
 
     y += LINE_SPACING;
 
@@ -375,18 +390,20 @@ void drawLiveScreen() {
 void drawOptionsScreen() {
     auto &d = M5Cardputer.Display;
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("   TLE / Options");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("   -------------");
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("1) Wi-Fi setup");
@@ -447,19 +464,20 @@ void drawOptionsScreen() {
 void drawWifiMenuScreen() {
     auto &d = M5Cardputer.Display;
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("   Wi-Fi Setup");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("   ----------");
-
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
     d.print("SSID: ");
@@ -493,18 +511,20 @@ void drawWifiMenuScreen() {
 void drawLocationMenuScreen() {
     auto &d = M5Cardputer.Display;
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_HEADER);
     d.println("  Location Setup");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("  --------------");
+    d.setTextColor(COL_TEXT);
 
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
@@ -543,11 +563,11 @@ String textInput(const String &initial, const char *prompt) {
     String value = initial;
 
     // Draw once immediately so you SEE the input screen as soon as it's called
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
-               0xF000);
+               COL_ACCENT);
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
@@ -579,11 +599,11 @@ String textInput(const String &initial, const char *prompt) {
             }
 
             // redraw prompt + current text
-            d.clear();
+            d.clear(COL_BG);
             d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                        d.width() - FRAME_MARGIN * 2,
                        d.height() - FRAME_MARGIN * 2,
-                       0xF000);
+                       COL_ACCENT);
 
             y = TEXT_TOP;
             d.setCursor(TEXT_LEFT, y);
@@ -634,19 +654,20 @@ void setup() {
 
     auto &d = M5Cardputer.Display;
     d.setFont(&fonts::Font0);       // smaller, clean font
-    d.setTextColor(0x07E0);
+    d.setTextColor(COL_TEXT);
     d.setTextSize(1);
 
-    d.clear();
+    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN,
             FRAME_MARGIN,
             d.width()  - FRAME_MARGIN * 2,
             d.height() - FRAME_MARGIN * 2,
-            0xF000);
-
+            COL_ACCENT);
+    d.setTextColor(COL_HEADER);
     d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
     d.println("ISS Tracker booting...");
     y += LINE_SPACING * 2;
+    d.setTextColor(COL_TEXT);
 
     // SD init
     SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
@@ -751,7 +772,7 @@ void loop() {
                     needsRedraw = true;
                 } else if (c == '3') {
                     auto &d = M5Cardputer.Display;
-                    d.clear();
+                    d.clear(COL_BG);
                     d.setCursor(TEXT_LEFT, TEXT_TOP);
                     d.println("Connecting to Wi-Fi...");
                     bool ok = connectWiFiAndTime();
@@ -761,7 +782,7 @@ void loop() {
                     needsRedraw = true;
                 } else if (c == '4') {
                     auto &d = M5Cardputer.Display;
-                    d.clear();
+                    d.clear(COL_BG);
                     d.setCursor(TEXT_LEFT, TEXT_TOP);
                     d.println("Downloading TLE...");
                     bool okConn = (WiFi.status() == WL_CONNECTED) || connectWiFiAndTime();
