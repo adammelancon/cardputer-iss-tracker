@@ -8,6 +8,10 @@
 #include <M5GFX.h>
 #include "credentials.h"
 
+// Editable Wi-Fi settings (start with defaults from credentials.h)
+String wifiSsid = WIFI_SSID;
+String wifiPass = WIFI_PSK;
+
 
 // ---------- SD Card Pins (Cardputer ADV) ----------
 #define SD_SPI_SCK_PIN  40
@@ -72,6 +76,8 @@ enum Screen {
     SCREEN_HOME = 0,
     SCREEN_LIVE,
     SCREEN_OPTIONS,
+    SCREEN_WIFI_MENU,       // <-- new
+    // (we'll do input in a blocking helper instead of separate screens)
     SCREEN_COUNT
 };
 
@@ -172,10 +178,10 @@ void parseTLE(const String &rawTLE) {
 
 // Connect Wi-Fi and sync NTP time
 bool connectWiFiAndTime() {
-    if (strlen(WIFI_SSID) == 0) return false;
+    if (wifiSsid.isEmpty()) return false;
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PSK);
+    WiFi.begin(wifiSsid.c_str(), wifiPass.c_str());
 
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
@@ -373,6 +379,11 @@ void drawOptionsScreen() {
     d.setCursor(TEXT_LEFT, y);
     d.println("   -------------");
 
+    y += LINE_SPACING * 2;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("Press ENTER for Wi-Fi setup");
+
+
     y += LINE_SPACING;
 
     if (!tleParsedOK) {
@@ -423,22 +434,113 @@ void drawOptionsScreen() {
     */
 }
 
+void drawWifiMenuScreen() {
+    auto &d = M5Cardputer.Display;
+
+    d.clear();
+    d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+               d.width() - FRAME_MARGIN * 2,
+               d.height() - FRAME_MARGIN * 2,
+               0xF000);
+
+    int y = TEXT_TOP;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("   Wi-Fi Setup");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("   ----------");
+
+    y += LINE_SPACING * 2;
+    d.setCursor(TEXT_LEFT, y);
+    d.print("SSID: ");
+    if (wifiSsid.isEmpty()) d.println("(not set)");
+    else                    d.println(wifiSsid);
+
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.print("Pass: ");
+    if (wifiPass.isEmpty()) d.println("(not set)");
+    else                    d.println("********");
+
+    y += LINE_SPACING * 2;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("1) Edit SSID");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("2) Edit password");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("3) Connect");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("ESC) Back");
+}
 
 
 void drawCurrentScreen() {
     switch (currentScreen) {
-        case SCREEN_HOME:    drawHomeScreen();    break;
-        case SCREEN_LIVE:    drawLiveScreen();    break;
-        case SCREEN_OPTIONS: drawOptionsScreen(); break;
-        default:             drawHomeScreen();    break;
+        case SCREEN_HOME:      drawHomeScreen();      break;
+        case SCREEN_LIVE:      drawLiveScreen();      break;
+        case SCREEN_OPTIONS:   drawOptionsScreen();   break;
+        case SCREEN_WIFI_MENU: drawWifiMenuScreen();  break;
+        default:               drawHomeScreen();      break;
     }
 }
+
+
+String textInput(const String &initial, const char *prompt) {
+    auto &d = M5Cardputer.Display;
+    String value = initial;
+
+    while (true) {
+        M5Cardputer.update();
+
+        if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
+            Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+
+            // regular characters
+            for (auto c : status.word) {
+                value += c;
+            }
+
+            // backspace
+            if (status.del && !value.isEmpty()) {
+                value.remove(value.length() - 1);
+            }
+
+            // enter = done
+            if (status.enter) {
+                return value;
+            }
+
+            // redraw prompt + current text
+            d.clear();
+            d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+                       d.width() - FRAME_MARGIN * 2,
+                       d.height() - FRAME_MARGIN * 2,
+                       0xF000);
+
+            int y = TEXT_TOP;
+            d.setCursor(TEXT_LEFT, y);
+            d.println(prompt);
+            y += LINE_SPACING * 2;
+
+            d.setCursor(TEXT_LEFT, y);
+            d.println(value);
+        }
+
+        delay(10);
+    }
+}
+
+
 
 // ---------- Arduino setup / loop ----------
 
 void setup() {
     auto cfg = M5.config();
-    M5Cardputer.begin(cfg);
+    M5Cardputer.begin(cfg, true);   // enable keyboard
+
 
     auto &d = M5Cardputer.Display;
     d.setFont(&fonts::Font0);       // smaller, clean font
@@ -509,6 +611,50 @@ void setup() {
 
 void loop() {
     M5Cardputer.update();
+
+    // Keyboard-driven navigation
+    if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
+        Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+
+        if (currentScreen == SCREEN_OPTIONS) {
+            // ENTER from Options -> Wi-Fi menu
+            if (status.enter) {
+                currentScreen = SCREEN_WIFI_MENU;
+                needsRedraw = true;
+            }
+        } else if (currentScreen == SCREEN_WIFI_MENU) {
+            // ESC back to Options
+            if (status.esc) {
+                currentScreen = SCREEN_OPTIONS;
+                needsRedraw = true;
+            }
+
+            // handle numeric choices
+            for (auto c : status.word) {
+                if (c == '1') {
+                    wifiSsid = textInput(wifiSsid, "Enter SSID:");
+                    currentScreen = SCREEN_WIFI_MENU;
+                    needsRedraw = true;
+                } else if (c == '2') {
+                    wifiPass = textInput(wifiPass, "Enter password:");
+                    currentScreen = SCREEN_WIFI_MENU;
+                    needsRedraw = true;
+                } else if (c == '3') {
+                    // Try to connect with current values
+                    auto &d = M5Cardputer.Display;
+                    d.clear();
+                    d.setCursor(TEXT_LEFT, TEXT_TOP);
+                    d.println("Connecting to Wi-Fi...");
+                    bool ok = connectWiFiAndTime();
+                    d.println(ok ? "Connected!" : "Failed.");
+                    delay(1500);
+                    currentScreen = SCREEN_WIFI_MENU;
+                    needsRedraw = true;
+                }
+            }
+        }
+    }
+
 
     // Top button cycles screens
     if (M5Cardputer.BtnA.wasPressed()) {
