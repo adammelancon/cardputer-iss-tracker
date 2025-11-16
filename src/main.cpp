@@ -473,7 +473,7 @@ void drawWifiMenuScreen() {
     d.println("3) Connect");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.println("ESC) Back");
+    d.println("0) Back");
 }
 
 
@@ -623,13 +623,7 @@ void loop() {
                 needsRedraw = true;
             }
         } else if (currentScreen == SCREEN_WIFI_MENU) {
-            // ESC back to Options
-            if (status.esc) {
-                currentScreen = SCREEN_OPTIONS;
-                needsRedraw = true;
-            }
-
-            // handle numeric choices
+            // handle numeric choices (and 0 = back)
             for (auto c : status.word) {
                 if (c == '1') {
                     wifiSsid = textInput(wifiSsid, "Enter SSID:");
@@ -640,7 +634,6 @@ void loop() {
                     currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '3') {
-                    // Try to connect with current values
                     auto &d = M5Cardputer.Display;
                     d.clear();
                     d.setCursor(TEXT_LEFT, TEXT_TOP);
@@ -650,9 +643,13 @@ void loop() {
                     delay(1500);
                     currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
+                } else if (c == '0') {   // 0 = Back
+                    currentScreen = SCREEN_OPTIONS;
+                    needsRedraw = true;
                 }
             }
         }
+
     }
 
 
