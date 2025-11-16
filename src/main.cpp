@@ -736,19 +736,18 @@ void loop() {
                     currentScreen = SCREEN_LOCATION_MENU;
                     needsRedraw = true;
                 }
-            }    
-        } else if (currentScreen == SCREEN_WIFI_MENU) {
+            }
+        }
+        else if (currentScreen == SCREEN_WIFI_MENU) {
             // handle numeric choices (and 0 = back)
             for (auto c : status.word) {
                 if (c == '1') {
                     wifiSsid = textInput(wifiSsid, "Enter SSID:");
                     saveWifiSettings();
-                    currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '2') {
                     wifiPass = textInput(wifiPass, "Enter password:");
                     saveWifiSettings();
-                    currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '3') {
                     auto &d = M5Cardputer.Display;
@@ -759,7 +758,6 @@ void loop() {
                     d.println(ok ? "Connected!" : "Failed.");
                     if (ok) saveWifiSettings();
                     delay(1500);
-                    currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '4') {
                     auto &d = M5Cardputer.Display;
@@ -773,46 +771,42 @@ void loop() {
                     }
                     d.println(okConn && okTle ? "TLE updated." : "Download failed.");
                     delay(1500);
-                    currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '0') {
                     currentScreen = SCREEN_OPTIONS;
                     needsRedraw = true;
                 }
-
             }
         }
         else if (currentScreen == SCREEN_LOCATION_MENU) {
             for (auto c : status.word) {
                 if (c == '1') {
-                    String latStr = textInput(String(obsLatDeg, 6), "Enter Lat (ex: 30.22):");
+                    String latStr = textInput(String(obsLatDeg, 6),
+                                              "Enter Lat (ex: 30.22):");
                     obsLatDeg = latStr.toFloat();
                     saveLocationSettings();
                     if (tleParsedOK) {
                         sat.site(obsLatDeg, obsLonDeg, OBS_ALT_M);
                     }
-                    currentScreen = SCREEN_LOCATION_MENU;
                     needsRedraw = true;
                 } else if (c == '2') {
-                    String lonStr = textInput(String(obsLonDeg, 6), "Enter Long (ex: -92.02):");
+                    String lonStr = textInput(String(obsLonDeg, 6),
+                                              "Enter Long (ex: -92.02):");
                     obsLonDeg = lonStr.toFloat();
                     saveLocationSettings();
                     if (tleParsedOK) {
                         sat.site(obsLatDeg, obsLonDeg, OBS_ALT_M);
                     }
-                    currentScreen = SCREEN_LOCATION_MENU;
                     needsRedraw = true;
                 } else if (c == '0') {
                     currentScreen = SCREEN_OPTIONS;
                     needsRedraw = true;
+                }
+            }
         }
     }
-}
 
-    }
-
-
-    // Top button cycles screens
+    // Top button cycles main screens only (HOME/LIVE/OPTIONS)
     if (M5Cardputer.BtnA.wasPressed()) {
         int next = static_cast<int>(currentScreen) + 1;
         if (next >= static_cast<int>(SCREEN_COUNT)) next = 0;
@@ -842,3 +836,4 @@ void loop() {
 
     delay(20);
 }
+
