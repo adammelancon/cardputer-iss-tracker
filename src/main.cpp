@@ -22,14 +22,20 @@ String wifiPass = WIFI_PSK;
 // ---------- Paths / WiFi / NTP ----------
 const char *ISS_TLE_PATH = "/apps/iss_tracker/iss.tle";
 
-
+#include <Preferences.h>
+Preferences prefs;
 
 const char *NTP_SERVER = "pool.ntp.org";
 
-// Your QTH (approx Lafayette, LA – tweak if you like)
-const double OBS_LAT_DEG = 30.22;   // degrees
-const double OBS_LON_DEG = -92.02;  // degrees
-const double OBS_ALT_M   = 15.0;    // meters
+// Your QTH defaults (approx Lafayette, LA)
+const double DEFAULT_OBS_LAT_DEG = 30.22;
+const double DEFAULT_OBS_LON_DEG = -92.02;
+const double OBS_ALT_M           = 15.0;    // meters
+
+// Editable location (can be changed in menu)
+double obsLatDeg = DEFAULT_OBS_LAT_DEG;
+double obsLonDeg = DEFAULT_OBS_LON_DEG;
+
 
 // --- UI Layout Constants ---
 const int FRAME_MARGIN = 5;         // outer border offset
@@ -76,10 +82,13 @@ enum Screen {
     SCREEN_HOME = 0,
     SCREEN_LIVE,
     SCREEN_OPTIONS,
-    SCREEN_WIFI_MENU,       // <-- new
-    // (we'll do input in a blocking helper instead of separate screens)
-    SCREEN_COUNT
+    SCREEN_COUNT,        // only these cycle with BtnA
+    SCREEN_WIFI_MENU,
+    SCREEN_LOCATION_MENU
 };
+
+
+
 
 Screen currentScreen = SCREEN_HOME;
 bool   needsRedraw   = true;
@@ -166,7 +175,7 @@ void parseTLE(const String &rawTLE) {
 
     // Initialize SGP4 from this TLE
     if (tleParsedOK) {
-        sat.site(OBS_LAT_DEG, OBS_LON_DEG, OBS_ALT_M);
+        sat.site(obsLatDeg, obsLonDeg, OBS_ALT_M);
         sat.init(
             satName.c_str(),  // const char[] is fine for name
             tleLine1Buf,      // writable char[130]
@@ -309,12 +318,12 @@ void drawLiveScreen() {
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
-    d.println("   ISS Live Position");
+    d.println("     ISS Live Position");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.println("   -----------------");
+    d.println("     -----------------");
 
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
 
     if (!tleParsedOK || !sgp4Ready) {
         d.setCursor(TEXT_LEFT, y);
@@ -336,7 +345,7 @@ void drawLiveScreen() {
     d.printf("%04d-%02d-%02d %02d:%02d\n",
              dispYear, dispMon, dispDay, dispHr, dispMin);
 
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("Lat:  %.2f deg\n", sat.satLat);
     y += LINE_SPACING;
@@ -346,14 +355,14 @@ void drawLiveScreen() {
     d.setCursor(TEXT_LEFT, y);
     d.printf("Alt:  %.0f km\n", sat.satAlt);
 
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("Az:   %.1f deg\n", sat.satAz);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("El:   %.1f deg\n", sat.satEl);
 
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.print("Vis: ");
     if (sat.satVis == -2)      d.println("Below horizon");
@@ -378,11 +387,12 @@ void drawOptionsScreen() {
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("   -------------");
-
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.println("Press ENTER for Wi-Fi setup");
-
+    d.println("1) Wi-Fi setup");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("2) Location setup");
 
     y += LINE_SPACING;
 
@@ -400,7 +410,6 @@ void drawOptionsScreen() {
 
     d.setCursor(TEXT_LEFT, y);
     d.println("Sat: " + satName);
-
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("Inc:  %.3f deg\n", tleIncDeg);
@@ -413,8 +422,9 @@ void drawOptionsScreen() {
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("ArgP: %.3f deg\n", tleArgPerDeg);
-    y += LINE_SPACING;
+
  /*
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("MAn:  %.3f deg\n", tleMeanAnDeg);
     y += LINE_SPACING;
@@ -473,24 +483,79 @@ void drawWifiMenuScreen() {
     d.println("3) Connect");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
+    d.println("4) Download TLE");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("0) Back");
+}
+
+
+void drawLocationMenuScreen() {
+    auto &d = M5Cardputer.Display;
+
+    d.clear();
+    d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+               d.width() - FRAME_MARGIN * 2,
+               d.height() - FRAME_MARGIN * 2,
+               0xF000);
+
+    int y = TEXT_TOP;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("  Location Setup");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("  --------------");
+
+    y += LINE_SPACING * 2;
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("Lat: %.4f\n", obsLatDeg);
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("Lon: %.4f\n", obsLonDeg);
+
+    y += LINE_SPACING * 2;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("1) Edit Lat (Ex: 30.22)");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("2) Edit Long (Ex: -92.02)");
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
     d.println("0) Back");
 }
 
 
 void drawCurrentScreen() {
     switch (currentScreen) {
-        case SCREEN_HOME:      drawHomeScreen();      break;
-        case SCREEN_LIVE:      drawLiveScreen();      break;
-        case SCREEN_OPTIONS:   drawOptionsScreen();   break;
-        case SCREEN_WIFI_MENU: drawWifiMenuScreen();  break;
-        default:               drawHomeScreen();      break;
+        case SCREEN_HOME:          drawHomeScreen();        break;
+        case SCREEN_LIVE:          drawLiveScreen();        break;
+        case SCREEN_OPTIONS:       drawOptionsScreen();     break;
+        case SCREEN_WIFI_MENU:     drawWifiMenuScreen();    break;
+        case SCREEN_LOCATION_MENU: drawLocationMenuScreen();break;
+        default:                   drawHomeScreen();        break;
     }
 }
+
 
 
 String textInput(const String &initial, const char *prompt) {
     auto &d = M5Cardputer.Display;
     String value = initial;
+
+    // Draw once immediately so you SEE the input screen as soon as it's called
+    d.clear();
+    d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+               d.width() - FRAME_MARGIN * 2,
+               d.height() - FRAME_MARGIN * 2,
+               0xF000);
+
+    int y = TEXT_TOP;
+    d.setCursor(TEXT_LEFT, y);
+    d.println(prompt);
+    y += LINE_SPACING * 2;
+
+    d.setCursor(TEXT_LEFT, y);
+    d.println(value);
 
     while (true) {
         M5Cardputer.update();
@@ -520,7 +585,7 @@ String textInput(const String &initial, const char *prompt) {
                        d.height() - FRAME_MARGIN * 2,
                        0xF000);
 
-            int y = TEXT_TOP;
+            y = TEXT_TOP;
             d.setCursor(TEXT_LEFT, y);
             d.println(prompt);
             y += LINE_SPACING * 2;
@@ -533,6 +598,29 @@ String textInput(const String &initial, const char *prompt) {
     }
 }
 
+void loadSettings() {
+    prefs.begin("iss_cfg", true);  // read-only
+    wifiSsid  = prefs.getString("wifiSsid", WIFI_SSID);
+    wifiPass  = prefs.getString("wifiPass", WIFI_PSK);
+    obsLatDeg = prefs.getDouble("lat",  DEFAULT_OBS_LAT_DEG);
+    obsLonDeg = prefs.getDouble("lon",  DEFAULT_OBS_LON_DEG);
+    prefs.end();
+}
+
+void saveWifiSettings() {
+    prefs.begin("iss_cfg", false);
+    prefs.putString("wifiSsid", wifiSsid);
+    prefs.putString("wifiPass", wifiPass);
+    prefs.end();
+}
+
+void saveLocationSettings() {
+    prefs.begin("iss_cfg", false);
+    prefs.putDouble("lat", obsLatDeg);
+    prefs.putDouble("lon", obsLonDeg);
+    prefs.end();
+}
+
 
 
 // ---------- Arduino setup / loop ----------
@@ -541,6 +629,8 @@ void setup() {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);   // enable keyboard
 
+    int y = TEXT_TOP;
+    loadSettings();  // <-- load Wi-Fi + location from NVS
 
     auto &d = M5Cardputer.Display;
     d.setFont(&fonts::Font0);       // smaller, clean font
@@ -554,46 +644,67 @@ void setup() {
             d.height() - FRAME_MARGIN * 2,
             0xF000);
 
-    d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + TEXT_TOP);
+    d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
     d.println("ISS Tracker booting...");
+    y += LINE_SPACING * 2;
 
     // SD init
     SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
     if (!SD.begin(SD_SPI_CS_PIN, SPI, 25000000)) {
-        d.println("SD init failed!");
+        d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
         delay(2000);
     } else {
+        d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
         d.println("SD init OK");
+        y += LINE_SPACING * 2;
 
         // Try loading local TLE first
         String raw = readFileFromSD(ISS_TLE_PATH);
         if (!raw.startsWith("ERROR")) {
             parseTLE(raw);
             if (tleParsedOK) {
+                d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
                 d.println("Loaded local TLE.");
+                y += LINE_SPACING;
             } else {
+                d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
                 d.println("Local TLE parse fail.");
+                y += LINE_SPACING;
             }
         } else {
+            d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
             d.println("No local TLE file.");
+            y += LINE_SPACING * 2;
         }
     }
 
     // Wi-Fi + TLE update
     d.println();
+    d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
     d.println("Connecting WiFi...");
+    y += LINE_SPACING;
     if (connectWiFiAndTime()) {
+        d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
         d.println("WiFi OK, updating TLE...");
+        y += LINE_SPACING;
         if (downloadTLEToSD()) {
+            d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
             d.println("TLE updated from net.");
+            y += LINE_SPACING;
         } else {
+            d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
             d.println("TLE download failed.");
+            y += LINE_SPACING;
         }
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
     } else {
+        d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
         d.println("WiFi/time failed, using");
+        y += LINE_SPACING;
+        d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
         d.println("local TLE if available.");
+        y += LINE_SPACING;
     }
 
     // Prime time + SGP4
@@ -617,20 +728,26 @@ void loop() {
         Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
 
         if (currentScreen == SCREEN_OPTIONS) {
-            // ENTER from Options -> Wi-Fi menu
-            if (status.enter) {
-                currentScreen = SCREEN_WIFI_MENU;
-                needsRedraw = true;
-            }
+            for (auto c : status.word) {
+                if (c == '1') {
+                    currentScreen = SCREEN_WIFI_MENU;
+                    needsRedraw = true;
+                } else if (c == '2') {
+                    currentScreen = SCREEN_LOCATION_MENU;
+                    needsRedraw = true;
+                }
+            }    
         } else if (currentScreen == SCREEN_WIFI_MENU) {
             // handle numeric choices (and 0 = back)
             for (auto c : status.word) {
                 if (c == '1') {
                     wifiSsid = textInput(wifiSsid, "Enter SSID:");
+                    saveWifiSettings();
                     currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '2') {
                     wifiPass = textInput(wifiPass, "Enter password:");
+                    saveWifiSettings();
                     currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
                 } else if (c == '3') {
@@ -640,15 +757,57 @@ void loop() {
                     d.println("Connecting to Wi-Fi...");
                     bool ok = connectWiFiAndTime();
                     d.println(ok ? "Connected!" : "Failed.");
+                    if (ok) saveWifiSettings();
                     delay(1500);
                     currentScreen = SCREEN_WIFI_MENU;
                     needsRedraw = true;
-                } else if (c == '0') {   // 0 = Back
+                } else if (c == '4') {
+                    auto &d = M5Cardputer.Display;
+                    d.clear();
+                    d.setCursor(TEXT_LEFT, TEXT_TOP);
+                    d.println("Downloading TLE...");
+                    bool okConn = (WiFi.status() == WL_CONNECTED) || connectWiFiAndTime();
+                    bool okTle  = false;
+                    if (okConn) {
+                        okTle = downloadTLEToSD();
+                    }
+                    d.println(okConn && okTle ? "TLE updated." : "Download failed.");
+                    delay(1500);
+                    currentScreen = SCREEN_WIFI_MENU;
+                    needsRedraw = true;
+                } else if (c == '0') {
                     currentScreen = SCREEN_OPTIONS;
                     needsRedraw = true;
                 }
+
             }
         }
+        else if (currentScreen == SCREEN_LOCATION_MENU) {
+            for (auto c : status.word) {
+                if (c == '1') {
+                    String latStr = textInput(String(obsLatDeg, 6), "Enter Lat (ex: 30.22):");
+                    obsLatDeg = latStr.toFloat();
+                    saveLocationSettings();
+                    if (tleParsedOK) {
+                        sat.site(obsLatDeg, obsLonDeg, OBS_ALT_M);
+                    }
+                    currentScreen = SCREEN_LOCATION_MENU;
+                    needsRedraw = true;
+                } else if (c == '2') {
+                    String lonStr = textInput(String(obsLonDeg, 6), "Enter Long (ex: -92.02):");
+                    obsLonDeg = lonStr.toFloat();
+                    saveLocationSettings();
+                    if (tleParsedOK) {
+                        sat.site(obsLatDeg, obsLonDeg, OBS_ALT_M);
+                    }
+                    currentScreen = SCREEN_LOCATION_MENU;
+                    needsRedraw = true;
+                } else if (c == '0') {
+                    currentScreen = SCREEN_OPTIONS;
+                    needsRedraw = true;
+        }
+    }
+}
 
     }
 
