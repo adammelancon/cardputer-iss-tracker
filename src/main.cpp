@@ -12,6 +12,9 @@
 String wifiSsid = WIFI_SSID;
 String wifiPass = WIFI_PSK;
 
+// App Version
+const char* APP_VERSION = "v1.2.0";
+
 
 // ---------- SD Card Pins (Cardputer ADV) ----------
 #define SD_SPI_SCK_PIN  40
@@ -179,6 +182,8 @@ void parseTLE(const String &rawTLE) {
     tleMeanMotion = mmStr.toFloat();
 
     tleParsedOK = true;
+    tleLine1.toCharArray(tleLine1Buf, sizeof(tleLine1Buf));
+    tleLine2.toCharArray(tleLine2Buf, sizeof(tleLine2Buf));
 
     // Initialize SGP4 from this TLE
     if (tleParsedOK) {
@@ -278,7 +283,7 @@ void drawHomeScreen() {
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_HEADER);
-    d.println("   ISS Tracker");
+    d.printf("   ISS Tracker %s\n", APP_VERSION);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.println("   -----------");
@@ -337,8 +342,13 @@ void drawLiveScreen() {
     d.setCursor(TEXT_LEFT, y);
     d.println("     -----------------");
     d.setTextColor(COL_TEXT);
-
     y += LINE_SPACING;
+    /*
+    
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("flags T:%d S:%d\n", (int)tleParsedOK, (int)sgp4Ready);
+    y += LINE_SPACING;
+    */
 
     if (!tleParsedOK || !sgp4Ready) {
         d.setCursor(TEXT_LEFT, y);
@@ -736,6 +746,12 @@ void setup() {
             sat.findsat(unixtime);
         }
     }
+
+
+    d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
+    d.printf("Epoch: %ld\n", (long)nowEpoch);
+    y += LINE_SPACING;
+
 
     delay(1500);
     drawCurrentScreen();
