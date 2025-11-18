@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
+</p>
+
 # Cardputer ISS Tracker
 
 This is a simple ISS (International Space Station) tracker for the M5Stack Cardputer ADV.  
