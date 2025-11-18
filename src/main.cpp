@@ -8,6 +8,9 @@
 #include <M5GFX.h>
 #include "credentials.h"
 
+// Sprite used as an off-screen framebuffer
+M5Canvas canvas(&M5Cardputer.Display);
+
 // Editable Wi-Fi settings (start with defaults from credentials.h)
 String wifiSsid = WIFI_SSID;
 String wifiPass = WIFI_PSK;
@@ -55,7 +58,6 @@ const int LINE_SPACING = 12;        // Font0 is 8px tall → 12px keeps readable
 
 
 
-
 // We'll use Central Time (CST/CDT) just for the display of sat time
 int tzOffsetHours = -6;  // adjust if you want
 
@@ -97,9 +99,6 @@ enum Screen {
     SCREEN_LOCATION_MENU
 };
 
-
-
-
 Screen currentScreen = SCREEN_HOME;
 bool   needsRedraw   = true;
 
@@ -107,6 +106,8 @@ bool   needsRedraw   = true;
 void drawHomeScreen();
 void drawLiveScreen();
 void drawOptionsScreen();
+void drawWifiMenuScreen();
+void drawLocationMenuScreen();
 void drawCurrentScreen();
 
 // ---------- Helpers ----------
@@ -272,9 +273,8 @@ bool downloadTLEToSD() {
 // ---------- Screen drawing ----------
 
 void drawHomeScreen() {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;  // draw into sprite
 
-    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
@@ -323,12 +323,9 @@ void drawHomeScreen() {
     }
 }
 
-
-
 void drawLiveScreen() {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;
 
-    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
@@ -343,12 +340,6 @@ void drawLiveScreen() {
     d.println("     -----------------");
     d.setTextColor(COL_TEXT);
     y += LINE_SPACING;
-    /*
-    
-    d.setCursor(TEXT_LEFT, y);
-    d.printf("flags T:%d S:%d\n", (int)tleParsedOK, (int)sgp4Ready);
-    y += LINE_SPACING;
-    */
 
     if (!tleParsedOK || !sgp4Ready) {
         d.setCursor(TEXT_LEFT, y);
@@ -395,12 +386,9 @@ void drawLiveScreen() {
     else                       d.printf("%d\n", sat.satVis);
 }
 
-
-
 void drawOptionsScreen() {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;
 
-    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
@@ -449,32 +437,11 @@ void drawOptionsScreen() {
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.printf("ArgP: %.3f deg\n", tleArgPerDeg);
-
- /*
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y);
-    d.printf("MAn:  %.3f deg\n", tleMeanAnDeg);
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y);
-    d.printf("n:    %.8f rev/d\n", tleMeanMotion);
-
-    y += LINE_SPACING * 2;
-    d.setCursor(TEXT_LEFT, y);
-    d.println("Raw TLE:");
-    y += LINE_SPACING;
-
-    // Print raw file but with clipping protection
-    String raw = readFileFromSD(ISS_TLE_PATH);
-
-    d.setCursor(TEXT_LEFT, y);
-    d.println(raw);
-    */
 }
 
 void drawWifiMenuScreen() {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;
 
-    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
@@ -517,11 +484,9 @@ void drawWifiMenuScreen() {
     d.println("0) Back");
 }
 
-
 void drawLocationMenuScreen() {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;
 
-    d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
@@ -554,8 +519,10 @@ void drawLocationMenuScreen() {
     d.println("0) Back");
 }
 
-
 void drawCurrentScreen() {
+    // Clear the sprite first
+    canvas.fillScreen(COL_BG);
+
     switch (currentScreen) {
         case SCREEN_HOME:          drawHomeScreen();        break;
         case SCREEN_LIVE:          drawLiveScreen();        break;
@@ -564,16 +531,17 @@ void drawCurrentScreen() {
         case SCREEN_LOCATION_MENU: drawLocationMenuScreen();break;
         default:                   drawHomeScreen();        break;
     }
+
+    // Push completed frame to the real display
+    canvas.pushSprite(0, 0);
 }
 
-
-
 String textInput(const String &initial, const char *prompt) {
-    auto &d = M5Cardputer.Display;
+    auto &d = canvas;
     String value = initial;
 
     // Draw once immediately so you SEE the input screen as soon as it's called
-    d.clear(COL_BG);
+    d.fillScreen(COL_BG);
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN * 2,
                d.height() - FRAME_MARGIN * 2,
@@ -581,11 +549,14 @@ String textInput(const String &initial, const char *prompt) {
 
     int y = TEXT_TOP;
     d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(COL_TEXT);
     d.println(prompt);
     y += LINE_SPACING * 2;
 
     d.setCursor(TEXT_LEFT, y);
     d.println(value);
+
+    canvas.pushSprite(0, 0);
 
     while (true) {
         M5Cardputer.update();
@@ -609,7 +580,7 @@ String textInput(const String &initial, const char *prompt) {
             }
 
             // redraw prompt + current text
-            d.clear(COL_BG);
+            d.fillScreen(COL_BG);
             d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                        d.width() - FRAME_MARGIN * 2,
                        d.height() - FRAME_MARGIN * 2,
@@ -617,11 +588,14 @@ String textInput(const String &initial, const char *prompt) {
 
             y = TEXT_TOP;
             d.setCursor(TEXT_LEFT, y);
+            d.setTextColor(COL_TEXT);
             d.println(prompt);
             y += LINE_SPACING * 2;
 
             d.setCursor(TEXT_LEFT, y);
             d.println(value);
+
+            canvas.pushSprite(0, 0);
         }
 
         delay(10);
@@ -659,6 +633,14 @@ void setup() {
     auto cfg = M5.config();
     M5Cardputer.begin(cfg, true);   // enable keyboard
 
+    // Create full-screen sprite
+    canvas.setColorDepth(16);
+    canvas.createSprite(M5Cardputer.Display.width(),
+                        M5Cardputer.Display.height());
+    canvas.setFont(&fonts::Font0);       // smaller, clean font
+    canvas.setTextSize(1);
+    canvas.setTextColor(COL_TEXT);
+
     int y = TEXT_TOP;
     loadSettings();  // <-- load Wi-Fi + location from NVS
 
@@ -669,10 +651,10 @@ void setup() {
 
     d.clear(COL_BG);
     d.drawRect(FRAME_MARGIN,
-            FRAME_MARGIN,
-            d.width()  - FRAME_MARGIN * 2,
-            d.height() - FRAME_MARGIN * 2,
-            COL_ACCENT);
+               FRAME_MARGIN,
+               d.width()  - FRAME_MARGIN * 2,
+               d.height() - FRAME_MARGIN * 2,
+               COL_ACCENT);
     d.setTextColor(COL_HEADER);
     d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
     d.println("ISS Tracker booting...");
@@ -747,11 +729,9 @@ void setup() {
         }
     }
 
-
     d.setCursor(FRAME_MARGIN + TEXT_LEFT, FRAME_MARGIN + y);
     d.printf("Epoch: %ld\n", (long)nowEpoch);
     y += LINE_SPACING;
-
 
     delay(1500);
     drawCurrentScreen();
@@ -787,26 +767,46 @@ void loop() {
                     saveWifiSettings();
                     needsRedraw = true;
                 } else if (c == '3') {
-                    auto &d = M5Cardputer.Display;
-                    d.clear(COL_BG);
+                    auto &d = canvas;
+                    d.fillScreen(COL_BG);
+                    d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+                               d.width() - FRAME_MARGIN * 2,
+                               d.height() - FRAME_MARGIN * 2,
+                               COL_ACCENT);
                     d.setCursor(TEXT_LEFT, TEXT_TOP);
+                    d.setTextColor(COL_TEXT);
                     d.println("Connecting to Wi-Fi...");
+                    canvas.pushSprite(0, 0);
+
                     bool ok = connectWiFiAndTime();
+                    d.setCursor(TEXT_LEFT, TEXT_TOP + LINE_SPACING * 2);
                     d.println(ok ? "Connected!" : "Failed.");
+                    canvas.pushSprite(0, 0);
+
                     if (ok) saveWifiSettings();
                     delay(1500);
                     needsRedraw = true;
                 } else if (c == '4') {
-                    auto &d = M5Cardputer.Display;
-                    d.clear(COL_BG);
+                    auto &d = canvas;
+                    d.fillScreen(COL_BG);
+                    d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
+                               d.width() - FRAME_MARGIN * 2,
+                               d.height() - FRAME_MARGIN * 2,
+                               COL_ACCENT);
                     d.setCursor(TEXT_LEFT, TEXT_TOP);
+                    d.setTextColor(COL_TEXT);
                     d.println("Downloading TLE...");
+                    canvas.pushSprite(0, 0);
+
                     bool okConn = (WiFi.status() == WL_CONNECTED) || connectWiFiAndTime();
                     bool okTle  = false;
                     if (okConn) {
                         okTle = downloadTLEToSD();
                     }
+                    d.setCursor(TEXT_LEFT, TEXT_TOP + LINE_SPACING * 2);
                     d.println(okConn && okTle ? "TLE updated." : "Download failed.");
+                    canvas.pushSprite(0, 0);
+
                     delay(1500);
                     needsRedraw = true;
                 } else if (c == '0') {
@@ -873,4 +873,3 @@ void loop() {
 
     delay(20);
 }
-
