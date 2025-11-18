@@ -28,3 +28,7 @@ If you just want to run it:
 1. Download the latest bin from the **Releases** page.
 2. Flash it using **esptool.py**, **M5Burner**, **your favorite flasher**, or even **load it through M5 Launcher**.
 3. Reboot the Cardputer.
+
+
+--- 
+Logo created at [PixilArt.com](https://www.pixilart.com/)
