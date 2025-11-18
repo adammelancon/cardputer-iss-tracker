@@ -7,6 +7,8 @@
 #include <Sgp4.h>
 #include <M5GFX.h>
 #include "credentials.h"
+#include "iss_icon.h"  // 32x32 ISS icon (RGB565)
+
 
 // Sprite used as an off-screen framebuffer
 M5Canvas canvas(&M5Cardputer.Display);
@@ -275,12 +277,23 @@ bool downloadTLEToSD() {
 void drawHomeScreen() {
     auto &d = canvas;  // draw into sprite
 
+    // border
     d.drawRect(FRAME_MARGIN, FRAME_MARGIN,
                d.width() - FRAME_MARGIN*2,
                d.height() - FRAME_MARGIN*2,
                COL_ACCENT);
 
+    // --- 32x32 ISS icon in the top-right corner ---
+    const int ICON_SIZE = 32;
+    int iconX = d.width() - FRAME_MARGIN - ICON_SIZE - 15; // right side
+    int iconY = FRAME_MARGIN + 15;                         // near top
+
+    d.pushImage(iconX, iconY, ICON_SIZE, ICON_SIZE, ISS_ICON_32x32);
+    // ------------------------------------------------
+
+    // Text goes back to normal position
     int y = TEXT_TOP;
+
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_HEADER);
     d.printf("   ISS Tracker %s\n", APP_VERSION);
@@ -322,6 +335,7 @@ void drawHomeScreen() {
         d.println("  " + satName);
     }
 }
+
 
 void drawLiveScreen() {
     auto &d = canvas;
