@@ -22,7 +22,9 @@ void drawFrame(M5Canvas &d, String title) {
 
 void drawHomeScreen(M5Canvas &d) {
     drawFrame(d, "ISS Tracker " APP_VERSION);
-    d.pushImage(d.width() - 40, 20, 32, 32, ISS_ICON_32x32);
+    
+    // UPDATED: Scooted icon left (was -40, now -55)
+    d.pushImage(d.width() - 55, 20, 32, 32, ISS_ICON_32x32);
 
     int y = TEXT_TOP + 20;
     d.setCursor(TEXT_LEFT, y);
@@ -153,13 +155,11 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     static unsigned long lastCalc = 0;
     static int lastMinEl = -1;
 
-    // Recalc if time passes OR if the user changed the setting
     if (currentUnix - lastCalc > 10000 || nextPass.aosUnix < currentUnix || lastMinEl != minEl) {
         d.setCursor(TEXT_LEFT, y);
         d.println("Calculating...");
         d.pushSprite(0,0);
         
-        // This function requires minEl now, which caused your error before
         if (predictNextPass(currentUnix, nextPass, minEl)) {
             lastCalc = currentUnix;
             lastMinEl = minEl;
@@ -203,7 +203,7 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     d.printf("Filter: > %d deg", minEl);
 }
 
-void drawOptionsScreen(M5Canvas &d, int minEl) {
+void drawOptionsScreen(M5Canvas &d, int minEl, int tzOffset) {
     drawFrame(d, "Options");
     int y = TEXT_TOP + 20;
     
@@ -214,6 +214,8 @@ void drawOptionsScreen(M5Canvas &d, int minEl) {
     d.setCursor(TEXT_LEFT, y); d.println("3) Force TLE Update");
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y); d.printf("4) Min Elevation: %d", minEl);
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y); d.printf("5) Timezone: UTC%+d", tzOffset);
     
     y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);

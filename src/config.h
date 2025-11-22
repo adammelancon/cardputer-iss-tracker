@@ -4,7 +4,7 @@
 #include <M5GFX.h>
 
 // App Version
-#define APP_VERSION "v1.4.0"
+#define APP_VERSION "v1.4.21"
 
 // ---------- Colors ----------
 #define COL_BG        0x0000  // Black

@@ -2,7 +2,7 @@
   <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
 </p>
 
-# Cardputer ISS Tracker
+# Cardputer Adv ISS Tracker
 
 This is a simple ISS (International Space Station) tracker for the M5Stack Cardputer ADV.  
 It connects to Wi-Fi, pulls ISS position / pass data, and shows information on the Cardputer screen.

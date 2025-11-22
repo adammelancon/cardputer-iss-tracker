@@ -9,6 +9,7 @@
 #include "orbit.h"
 #include "ui.h"
 #include "credentials.h"
+#include "iss_icon.h" 
 
 // --- GLOBALS ---
 M5Canvas canvas(&M5Cardputer.Display);
@@ -19,8 +20,8 @@ String wifiPass = WIFI_PSK;
 
 double obsLatDeg = 30.22; 
 double obsLonDeg = -92.02;
-int minElevation = DEFAULT_MIN_EL; // New global
-int tzOffsetHours = -6;
+int minElevation = DEFAULT_MIN_EL;
+int tzOffsetHours = -6; 
 String satName = "";
 bool tleParsedOK = false;
 
@@ -127,8 +128,11 @@ void setup() {
     wifiPass = prefs.getString("wifiPass", WIFI_PSK);
     obsLatDeg = prefs.getDouble("lat", obsLatDeg);
     obsLonDeg = prefs.getDouble("lon", obsLonDeg);
-    minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL); // Load Setting
+    minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL);
+    tzOffsetHours = prefs.getInt("tzOffset", -6); 
     prefs.end();
+
+    configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
 
     // Load TLE
     String localTle = readFileFromSD(ISS_TLE_PATH);
@@ -136,9 +140,25 @@ void setup() {
         parseTLEData(localTle);
     }
 
-    // Quick connection attempt
-    canvas.drawString("Booting...", 10, 10);
+    // --- NEW BOOT SCREEN ---
+    canvas.fillScreen(COL_BG);
+    
+    // Draw Text Centered
+    canvas.setTextDatum(middle_center);
+    canvas.setTextColor(COL_HEADER);
+    canvas.drawString("ISS Tracker", canvas.width() / 2, 45);
+    
+    // Draw Line
+    canvas.drawFastHLine(60, 58, 120, COL_ACCENT);
+    
+    // Draw Icon Centered (reverted to pure center)
+    int iconX = (canvas.width() / 2) - 16;
+    canvas.pushImage(iconX, 68, 32, 32, ISS_ICON_32x32);
+    
+    // Reset Datum for normal text
+    canvas.setTextDatum(top_left);
     canvas.pushSprite(0,0);
+    // -----------------------
     
     if (connectWiFiAndTime()) {
          downloadTLE();
@@ -203,6 +223,19 @@ void loop() {
                     prefs.end();
                     needsRedraw=true;
                 }
+                if (c == '5') { // Timezone
+                    String t = textInput(String(tzOffsetHours), "Offset (ex: -6):");
+                    tzOffsetHours = t.toInt();
+                    
+                    // Save
+                    prefs.begin("iss_cfg", false);
+                    prefs.putInt("tzOffset", tzOffsetHours);
+                    prefs.end();
+                    
+                    configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
+                    
+                    needsRedraw=true;
+                }
             }
         }
     }
@@ -228,8 +261,8 @@ void loop() {
             case SCREEN_HOME:   drawHomeScreen(canvas); break;
             case SCREEN_LIVE:   drawLiveScreen(canvas, tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min); break;
             case SCREEN_RADAR:  drawRadarScreen(canvas, unixtime); break;
-            case SCREEN_PASS:   drawPassScreen(canvas, unixtime, minElevation); break; // Pass minEl
-            case SCREEN_OPTIONS:drawOptionsScreen(canvas, minElevation); break; // Pass minEl
+            case SCREEN_PASS:   drawPassScreen(canvas, unixtime, minElevation); break; 
+            case SCREEN_OPTIONS:drawOptionsScreen(canvas, minElevation, tzOffsetHours); break; 
             default: break;
         }
         canvas.pushSprite(0,0);
