@@ -36,6 +36,27 @@ Setup: You just need to enter your Wi-Fi, Lat/Long, and Timezone in the Options 
 | :---: | :---: |
 | <img src="images/Options.jpg" width="300" alt="Options"> | |
 
+
+## Using the polar plot view
+- Imagine you are looking down at a compass.
+- Going around the outer circle is your azmuth, 0-360 degress.
+- The distance from the outer circle to the center dot is the elevation of the pass, from 0 degrees (outer circle) which is at the horizon, up to 90 degrees (center dot) which is directly above you.
+
+Example 1:
+1.  Lets say there was a satellite pass that went from E to W and had a max elevation of 90 degrees (straight up above your head).
+2.  The dot would start at the E and the line would end at the W.
+3.  The dot would track right down the middle from E to W.
+4.  When it's at it's peak of the pass, the dot would be dead center, since it passes directly over your head at 90 degrees.
+5.  When it hits the W, it goes down below the horizon.
+
+Example 2: 
+1.  The satellite comes up from the horizon between East and North, which is where you will see the dot. This is called acquisition of signal (AOS).
+2.  At about half way through the pass, if the peek of the arc is closer to the horizon line (outer circle) it will be a shallow elevation pass (about 15 to 25 degrees above the horizon) and will be more in front of you instead of passing overhead.
+3.  At the end of the pass, the dot will be on the other side of the plot and when it reaches the outer circle, it dissapears behind the horizon.   This is called loss of signal (LOS).
+
+You will find these plots in other applicationsn like Gpredict or satellite tracking websites.
+
+
 ## Hardware
 
 - M5Stack Cardputer ADV  
