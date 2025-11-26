@@ -15,7 +15,7 @@ void drawFrame(M5Canvas &d, String title) {
     d.println(title);
     
     int lineEnd = d.width() * 0.75;
-    d.drawLine(TEXT_LEFT, TEXT_TOP + 10, lineEnd, TEXT_TOP+10, COL_ACCENT);
+    d.drawLine(TEXT_LEFT, TEXT_TOP + 20, lineEnd, TEXT_TOP+20, COL_ACCENT);
     
     d.setTextColor(COL_TEXT);
 }
@@ -28,13 +28,13 @@ void drawHomeScreen(M5Canvas &d) {
 
     int y = TEXT_TOP + 20;
     d.setCursor(TEXT_LEFT, y);
-    d.println("Btn G0: Cycle Screens");
-    y += LINE_SPACING * 2;
+    d.println("Change Menu - G0 Btn");
+    y += LINE_SPACING;
 
     const char* menu[] = {
-        "LIVE    - Position Data",
+        "LIVE     - Position Data",
         "RADAR   - Skyplot View",
-        "PASS    - Next Prediction",
+        "PASS     - Next Prediction",
         "OPTIONS - Config/WiFi"
     };
 
@@ -48,7 +48,7 @@ void drawHomeScreen(M5Canvas &d) {
     if (isOrbitReady()) {
         d.setTextColor(COL_SAT_PATH);
         d.setCursor(TEXT_LEFT, y);
-        d.printf("Tracking: %s", satName.c_str());
+        d.printf("Tracking - %s", satName.c_str());
     } else {
         d.setTextColor(COL_SAT_NOW);
         d.setCursor(TEXT_LEFT, y);
@@ -58,35 +58,32 @@ void drawHomeScreen(M5Canvas &d) {
 
 void drawLiveScreen(M5Canvas &d, int year, int mon, int day, int hr, int min) {
     drawFrame(d, "Live Telemetry");
-    int y = TEXT_TOP + 20;
+    int y = TEXT_TOP + 22;
 
     if (!isOrbitReady()) {
         d.setCursor(TEXT_LEFT, y); d.println("No Data."); return;
     }
 
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Local: %02d:%02d:%02d\n", hr, min, 0); 
+    d.printf("Local Time - %02d : %02d : %02d\n", hr, min, 0); 
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Lat: %.2f  Lon: %.2f\n", sat.satLat, sat.satLon);
+    d.printf("Lat : %.2f  Lon : %.2f\n", sat.satLat, sat.satLon);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Alt: %.1f km\n", sat.satAlt);
+    d.printf("Alt : %.1f km\n", sat.satAlt);
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Az:  %.1f deg\n", sat.satAz);
+    d.printf("Az : %.0f  El : %.0f\n", sat.satAz, sat.satEl);
     y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y);
-    d.printf("El:  %.1f deg\n", sat.satEl);
     
-    y += LINE_SPACING * 2;
     d.setCursor(TEXT_LEFT, y);
     if (sat.satEl > 0) {
         d.setTextColor(COL_SAT_PATH);
-        d.println("VISIBLE (AOS)");
+        d.println("VISIBLE (Acqired)");
     } else {
         d.setTextColor(COL_ACCENT);
-        d.println("BELOW HORIZON (LOS)");
+        d.println("BELOW HORIZON (Loss)");
     }
 }
 
@@ -144,8 +141,8 @@ void drawRadarScreen(M5Canvas &d, unsigned long currentUnix) {
 }
 
 void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
-    drawFrame(d, "Next Pass Prediction");
-    int y = TEXT_TOP + 20;
+    drawFrame(d, "Pass Prediction");
+    int y = TEXT_TOP + 25;
 
     if (!isOrbitReady()) {
         d.setCursor(TEXT_LEFT, y); d.println("No TLE."); return;
@@ -163,9 +160,9 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
         if (predictNextPass(currentUnix, nextPass, minEl)) {
             lastCalc = currentUnix;
             lastMinEl = minEl;
-            drawFrame(d, "Next Pass Prediction");
+            drawFrame(d, "Pass Prediction");
         } else {
-            drawFrame(d, "Next Pass Prediction");
+            drawFrame(d, "Pass Prediction");
             d.setCursor(TEXT_LEFT, y);
             d.printf("No pass > %d deg\n", minEl);
             y+= LINE_SPACING;
@@ -180,7 +177,7 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_HEADER);
-    d.println("NEXT AOS:");
+    d.println("Next Acquisition of Signal");
     d.setTextColor(COL_TEXT);
     
     char timeBuf[30];
@@ -189,18 +186,18 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     d.setCursor(TEXT_LEFT, y);
     d.println(timeBuf);
 
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Duration: %.1f min\n", nextPass.durationMins);
+    d.printf("Duration - %.1f min\n", nextPass.durationMins);
     
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Max El:   %.0f deg\n", nextPass.maxElevation);
+    d.printf("Max Elev - %.0f deg\n", nextPass.maxElevation);
     
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_ACCENT);
-    d.printf("Filter: > %d deg", minEl);
+    d.printf("Filter > %d deg", minEl);
 }
 
 void drawOptionsScreen(M5Canvas &d, int minEl, int tzOffset) {
@@ -213,11 +210,11 @@ void drawOptionsScreen(M5Canvas &d, int minEl, int tzOffset) {
     y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y); d.println("3) Force TLE Update");
     y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.printf("4) Min Elevation: %d", minEl);
+    d.setCursor(TEXT_LEFT, y); d.printf("4) Min Elevation - %d", minEl);
     y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.printf("5) Timezone: UTC%+d", tzOffset);
+    d.setCursor(TEXT_LEFT, y); d.printf("5) Timezone - UTC%+d", tzOffset);
     
-    y += LINE_SPACING * 2;
+    y += LINE_SPACING;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Orbit: %.3f deg inc", tleIncDeg);
+    d.printf("Orbit - %.3f deg inc", tleIncDeg);
 }

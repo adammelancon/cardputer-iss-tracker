@@ -4,7 +4,7 @@
 #include <M5GFX.h>
 
 // App Version
-#define APP_VERSION "v1.4.21"
+#define APP_VERSION "v1.5.00"
 
 // ---------- Colors ----------
 #define COL_BG        0x0000  // Black
@@ -17,14 +17,19 @@
 // ---------- Geometry ----------
 #define FRAME_MARGIN  5
 #define TEXT_LEFT     22
-#define TEXT_TOP      15
-#define LINE_SPACING  12
+#define TEXT_TOP      10
+#define LINE_SPACING  18 // Height of Font2 (16) + 2px gap
 
 // ---------- Pins (Cardputer ADV) ----------
 #define SD_SPI_SCK_PIN  40
 #define SD_SPI_MISO_PIN 39
 #define SD_SPI_MOSI_PIN 14
 #define SD_SPI_CS_PIN   12
+
+// ----------LEDs------------
+#define LED_PIN         21  // M5StampS3 RGB LED
+#define LED_COUNT       1
+#define LED_BRIGHTNESS  20  // Keep it low (0-255) to save power/eyes
 
 // ---------- Settings ----------
 #define ISS_TLE_PATH "/apps/iss_tracker/iss.tle"

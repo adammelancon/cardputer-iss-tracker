@@ -4,6 +4,7 @@
 #include <SD.h>
 #include <Preferences.h>
 #include <time.h>
+#include <Adafruit_NeoPixel.h>
 
 #include "config.h"
 #include "orbit.h"
@@ -14,6 +15,7 @@
 // --- GLOBALS ---
 M5Canvas canvas(&M5Cardputer.Display);
 Preferences prefs;
+Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 String wifiSsid = WIFI_SSID;
 String wifiPass = WIFI_PSK;
@@ -24,6 +26,12 @@ int minElevation = DEFAULT_MIN_EL;
 int tzOffsetHours = -6; 
 String satName = "";
 bool tleParsedOK = false;
+
+// --- LED State Variables ---
+bool wasVisible = false;       // Tracks state from previous loop
+bool losTimerActive = false;   // Are we currently showing the Red LOS light?
+unsigned long losStartTime = 0; // When did LOS start?
+const int LOS_DURATION_MS = 5000; // How long to stay red (5 seconds)
 
 // --- UI State ---
 enum Screen {
@@ -111,8 +119,14 @@ void setup() {
     // Init Display
     canvas.setColorDepth(16);
     canvas.createSprite(240, 135);
-    canvas.setFont(&fonts::Font0);
+    canvas.setFont(&fonts::Font2); // Using larger font
     canvas.setTextSize(1);
+
+    // LED Init
+    pixels.begin();
+    pixels.setBrightness(LED_BRIGHTNESS);
+    pixels.setPixelColor(0, 0); // Start Off
+    pixels.show();
     
     // Init SD
     SPI.begin(SD_SPI_SCK_PIN, SD_SPI_MISO_PIN, SD_SPI_MOSI_PIN, SD_SPI_CS_PIN);
@@ -140,7 +154,7 @@ void setup() {
         parseTLEData(localTle);
     }
 
-    // --- NEW BOOT SCREEN ---
+    // --- BOOT SCREEN ---
     canvas.fillScreen(COL_BG);
     
     // Draw Text Centered
@@ -151,7 +165,7 @@ void setup() {
     // Draw Line
     canvas.drawFastHLine(60, 58, 120, COL_ACCENT);
     
-    // Draw Icon Centered (reverted to pure center)
+    // Draw Icon Centered
     int iconX = (canvas.width() / 2) - 16;
     canvas.pushImage(iconX, 68, 32, 32, ISS_ICON_32x32);
     
@@ -227,13 +241,11 @@ void loop() {
                     String t = textInput(String(tzOffsetHours), "Offset (ex: -6):");
                     tzOffsetHours = t.toInt();
                     
-                    // Save
                     prefs.begin("iss_cfg", false);
                     prefs.putInt("tzOffset", tzOffsetHours);
                     prefs.end();
                     
                     configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
-                    
                     needsRedraw=true;
                 }
             }
@@ -246,10 +258,46 @@ void loop() {
         unixtime = (unsigned long)t;
         updateSatellitePos(unixtime);
         lastOrbitUpdateMs = now;
+        
+        // --- LED LOGIC START ---
+        bool currentlyVisible = (sat.satEl > 0);
+
+        if (currentlyVisible) {
+            // CASE 1: Satellite is ABOVE horizon -> GREEN
+            pixels.setPixelColor(0, pixels.Color(0, 255, 0)); 
+            losTimerActive = false; // Reset LOS timer if it pops back up
+        } 
+        else {
+            // CASE 2: Satellite is BELOW horizon
+            
+            // Check for transition: Was it visible last second?
+            if (wasVisible) {
+                // It JUST went down. Start the Red Timer.
+                losTimerActive = true;
+                losStartTime = millis();
+            }
+
+            if (losTimerActive) {
+                // Check if 5 seconds have passed
+                if (millis() - losStartTime < LOS_DURATION_MS) {
+                    pixels.setPixelColor(0, pixels.Color(255, 0, 0)); // RED
+                } else {
+                    pixels.setPixelColor(0, 0); // OFF (Time expired)
+                    losTimerActive = false;
+                }
+            } else {
+                pixels.setPixelColor(0, 0); // OFF (Standard state below horizon)
+            }
+        }
+        
+        pixels.show(); // Apply changes
+        wasVisible = currentlyVisible; // Save state for next loop
+        // --- LED LOGIC END ---
+
         if (currentScreen == SCREEN_LIVE || currentScreen == SCREEN_RADAR) {
             needsRedraw = true;
         }
-    }
+    } // <--- End of time check
 
     if (needsRedraw) {
         canvas.fillScreen(COL_BG);
