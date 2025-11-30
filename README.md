@@ -41,7 +41,7 @@ Setup: You just need to enter your Wi-Fi, Lat/Long, and Timezone in the Options 
 
 | GPS Status | |
 | :---: | :---: |
-| <img src="images/GPSstatus.jpg" width="300" alt="Options"> |  |
+| <img src="images/GPSStatus.jpg" width="300" alt="Options"> |  |
 
 
 
