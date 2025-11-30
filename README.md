@@ -32,9 +32,10 @@ Setup: You just need to enter your Wi-Fi, Lat/Long, and Timezone in the Options 
 | :---: | :---: |
 | <img src="images/Polar.jpg" width="300" alt="Polar View"> | <img src="images/Predict.jpg" width="300" alt="Pass Prediction"> |
 
-| Options Menu | |
+| Options Menu | Location Menu |
 | :---: | :---: |
-| <img src="images/Options.jpg" width="300" alt="Options"> | |
+| <img src="images/Options.jpg" width="300" alt="Options"> |  <img src="images/Location.jpg" width="300" alt="Location">  |
+
 
 
 ## Using the polar plot view
