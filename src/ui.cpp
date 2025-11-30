@@ -142,7 +142,7 @@ void drawRadarScreen(M5Canvas &d, unsigned long currentUnix) {
     }
 }
 
-void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
+void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl, double lat, double lon) {
     drawFrame(d, "Pass Prediction");
     int y = TEXT_TOP + 25;
 
@@ -153,8 +153,18 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     static PassDetails nextPass;
     static unsigned long lastCalc = 0;
     static int lastMinEl = -1;
+    // ADD CACHING VARIABLES FOR LOCATION
+    static double lastLat = -999;
+    static double lastLon = -999;
 
-    if (currentUnix - lastCalc > 10000 || nextPass.aosUnix < currentUnix || lastMinEl != minEl) {
+    // UPDATE THE CHECK CONDITION:
+    // We now recalc if: Time expired OR Pass passed OR MinEl changed OR Location changed
+    if (currentUnix - lastCalc > 10000 || 
+        nextPass.aosUnix < currentUnix || 
+        lastMinEl != minEl || 
+        lastLat != lat || 
+        lastLon != lon) {
+            
         d.setCursor(TEXT_LEFT, y);
         d.println("Calculating...");
         d.pushSprite(0,0);
@@ -162,6 +172,8 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
         if (predictNextPass(currentUnix, nextPass, minEl)) {
             lastCalc = currentUnix;
             lastMinEl = minEl;
+            lastLat = lat; // Update Cache
+            lastLon = lon; // Update Cache
             drawFrame(d, "Pass Prediction");
         } else {
             drawFrame(d, "Pass Prediction");
@@ -174,6 +186,7 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
         }
     }
 
+    // ... (The rest of the drawing code remains exactly the same) ...
     time_t rawAos = nextPass.aosUnix;
     struct tm * taos = localtime(&rawAos);
     
@@ -267,14 +280,80 @@ void drawSatMenu(M5Canvas &d, int minEl) {
     d.printf("Inc: %.3f  Ecc: %.4f", tleIncDeg, tleEcc);
 }
 
-void drawLocationMenu(M5Canvas &d, double lat, double lon) {
+void drawLocationMenu(M5Canvas &d, double lat, double lon, bool useGps, bool gpsFix, int sats) {
     drawFrame(d, "Location Setup");
+    int y = TEXT_TOP + 20;
+
+    // Item 1: Source
+    d.setCursor(TEXT_LEFT, y);
+    d.setTextColor(useGps ? COL_SAT_PATH : COL_TEXT);
+    d.printf("1) Source: [%s]\n", useGps ? "GPS Module" : "MANUAL");
+    d.setTextColor(COL_TEXT);
+    y += LINE_SPACING;
+
+    // Item 2 & 3: Lat/Lon
+    d.setCursor(TEXT_LEFT, y);
+    if (useGps) d.setTextColor(COL_ACCENT); // Dim if GPS active
+    d.printf("2) Set Lat: %.4f\n", lat);
+    y += LINE_SPACING;
+    
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("3) Set Lon: %.4f\n", lon);
+    d.setTextColor(COL_TEXT);
+    y += LINE_SPACING;
+
+    // Item 4: Details Link
+    d.setCursor(TEXT_LEFT, y);
+    if (!useGps) d.setTextColor(COL_ACCENT);
+    d.println("4) GPS Status Info >");
+    d.setTextColor(COL_TEXT);
+
+    // Footer Status
+    d.setCursor(TEXT_LEFT, d.height() - 25);
+    if (useGps) {
+        if (gpsFix) {
+            d.setTextColor(COL_SAT_PATH); // Green
+            d.printf("GPS Acquired (%d Sats)", sats);
+        } else {
+            d.setTextColor(COL_SAT_NOW); // Red/Orange
+            d.print("GPS: Searching...");
+        }
+    } else {
+        d.setTextColor(COL_ACCENT);
+        d.print("Mode: Fixed Location");
+    }
+}
+
+void drawGpsInfoScreen(M5Canvas &d, TinyGPSPlus &gps) {
+    drawFrame(d, "GPS Details");
     int y = TEXT_TOP + 20;
     
     d.setCursor(TEXT_LEFT, y);
-    d.printf("1) Set Latitude\n   (Cur: %.4f)\n", lat);
-    y += LINE_SPACING * 2; // Extra space
-    
+    d.printf("Sats: %d  HDOP: %.1f\n", gps.satellites.value(), gps.hdop.hdop());
+    y += LINE_SPACING;
+
     d.setCursor(TEXT_LEFT, y);
-    d.printf("2) Set Longitude\n   (Cur: %.4f)\n", lon);
+    d.printf("Lat: %.5f\n", gps.location.lat());
+    y += LINE_SPACING;
+
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("Lon: %.5f\n", gps.location.lng());
+    y += LINE_SPACING;
+
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("Alt: %.1f m\n", gps.altitude.meters());
+    y += LINE_SPACING;
+
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("Time: %02d:%02d:%02d UTC\n", gps.time.hour(), gps.time.minute(), gps.time.second());
+    
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    if (gps.location.isValid()) {
+        d.setTextColor(COL_SAT_PATH);
+        d.print("STATUS: 3D FIX");
+    } else {
+        d.setTextColor(COL_SAT_NOW);
+        d.print("STATUS: NO FIX");
+    }
 }

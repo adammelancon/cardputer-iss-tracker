@@ -5,12 +5,14 @@
 #include <Preferences.h>
 #include <time.h>
 #include <Adafruit_NeoPixel.h>
+#include <TinyGPS++.h>
 
 #include "config.h"
 #include "orbit.h"
 #include "ui.h"
 #include "credentials.h"
 #include "iss_icon.h" 
+
 
 // --- GLOBALS ---
 M5Canvas canvas(&M5Cardputer.Display);
@@ -26,6 +28,10 @@ int minElevation = DEFAULT_MIN_EL;
 int tzOffsetHours = -6; 
 String satName = "";
 bool tleParsedOK = false;
+
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(1); // Use UART 1
+bool useGpsModule = false;
 
 // --- LED State Variables ---
 bool wasVisible = false;       // Tracks state from previous loop
@@ -47,6 +53,7 @@ enum Screen {
     SCREEN_MENU_WIFI,
     SCREEN_MENU_SAT,
     SCREEN_MENU_LOC,
+    SCREEN_GPS_INFO,
     
     SCREEN_COUNT // Keep this for the G0 cycling logic
 };
@@ -162,9 +169,15 @@ void setup() {
     obsLonDeg = prefs.getDouble("lon", obsLonDeg);
     minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL);
     tzOffsetHours = prefs.getInt("tzOffset", -6); 
+    useGpsModule = prefs.getBool("useGps", false); // Load preference
     prefs.end();
 
     configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
+
+    // Init GPS Serial if enabled
+    if (useGpsModule) {
+        gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    }
 
     // Load TLE
     String localTle = readFileFromSD(ISS_TLE_PATH);
@@ -204,6 +217,23 @@ void setup() {
 void loop() {
     M5Cardputer.update();
 
+    // --- GPS PARSING ---
+    if (useGpsModule) {
+        while (gpsSerial.available() > 0) {
+            gps.encode(gpsSerial.read());
+        }
+        if (gps.location.isUpdated()) {
+            obsLatDeg = gps.location.lat();
+            obsLonDeg = gps.location.lng();
+            setupOrbitLocation(obsLatDeg, obsLonDeg); // Update SGP4 instantly
+            
+            // Optional: Sync system time from GPS if valid
+            if (gps.time.isValid() && gps.date.isValid() && gps.time.age() < 1000) {
+                 // You could implement setTime() here if WiFi NTP fails!
+            }
+        }
+    }
+
     // --- 1. KEYBOARD INPUT HANDLING ---
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         Keyboard_Class::KeysState k = M5Cardputer.Keyboard.keysState();
@@ -220,6 +250,9 @@ void loop() {
                 currentScreen == SCREEN_MENU_LOC) {
                 currentScreen = SCREEN_MENU_MAIN; // Submenu -> Main Menu
             } 
+            else if (currentScreen == SCREEN_GPS_INFO) { // <--- Add this
+                currentScreen = SCREEN_MENU_LOC;         // Back to Loc Menu
+            }
             else if (currentScreen == SCREEN_MENU_MAIN) {
                 currentScreen = SCREEN_HOME;      // Main Menu -> Home
             }
@@ -291,26 +324,58 @@ void loop() {
                 }
             }
             // LOCATION MENU
-            else if (currentScreen == SCREEN_MENU_LOC) {
+else if (currentScreen == SCREEN_MENU_LOC) {
                  for (auto c : k.word) {
+                    // TOGGLE GPS MODE
                     if (c == '1') { 
-                        String l = textInput(String(obsLatDeg), "Lat:");
-                        obsLatDeg = l.toFloat();
+                        useGpsModule = !useGpsModule;
+                        
+                        // Save Preference
                         prefs.begin("iss_cfg", false);
-                        prefs.putDouble("lat", obsLatDeg);
+                        prefs.putBool("useGps", useGpsModule);
                         prefs.end();
-                        setupOrbitLocation(obsLatDeg, obsLonDeg);
+                        
+                        // Start/Stop Serial
+                        if (useGpsModule) {
+                            gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+                        } else {
+                            // Keeping serial open is fine, or you can gpsSerial.end();
+                        }
                         needsRedraw = true;
                     }
-                    if (c == '2') {
-                        String lo = textInput(String(obsLonDeg), "Lon:");
-                        obsLonDeg = lo.toFloat();
-                        prefs.begin("iss_cfg", false);
-                        prefs.putDouble("lon", obsLonDeg);
-                        prefs.end();
-                        setupOrbitLocation(obsLatDeg, obsLonDeg);
+                    
+                    // EDIT LAT (Only if Manual)
+                    if (c == '2') { 
+                        if (!useGpsModule) {
+                            String l = textInput(String(obsLatDeg), "Lat:");
+                            obsLatDeg = l.toFloat();
+                            prefs.begin("iss_cfg", false);
+                            prefs.putDouble("lat", obsLatDeg);
+                            prefs.end();
+                            setupOrbitLocation(obsLatDeg, obsLonDeg);
+                        }
                         needsRedraw = true;
                     }
+                    
+                    // EDIT LON (Only if Manual)
+                    if (c == '3') {
+                        if (!useGpsModule) {
+                            String lo = textInput(String(obsLonDeg), "Lon:");
+                            obsLonDeg = lo.toFloat();
+                            prefs.begin("iss_cfg", false);
+                            prefs.putDouble("lon", obsLonDeg);
+                            prefs.end();
+                            setupOrbitLocation(obsLatDeg, obsLonDeg);
+                        }
+                        needsRedraw = true;
+                    }
+
+                    if (c == '4') {
+                        if (useGpsModule) {
+                            currentScreen = SCREEN_GPS_INFO;
+                            needsRedraw = true;
+                        }
+            }
                 }
             }
         }
@@ -370,14 +435,18 @@ void loop() {
             case SCREEN_HOME:   drawHomeScreen(canvas); break;
             case SCREEN_LIVE:   drawLiveScreen(canvas, tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min); break;
             case SCREEN_RADAR:  drawRadarScreen(canvas, unixtime); break;
-            case SCREEN_PASS:   drawPassScreen(canvas, unixtime, minElevation); break; 
-            
+            case SCREEN_PASS:   
+                drawPassScreen(canvas, unixtime, minElevation, obsLatDeg, obsLonDeg); 
+                break;            
             case SCREEN_MENU_MAIN: drawMainMenu(canvas); break;
             case SCREEN_MENU_WIFI: drawWifiMenu(canvas, wifiSsid); break;
             case SCREEN_MENU_SAT:  drawSatMenu(canvas, minElevation); break;
-            case SCREEN_MENU_LOC:  drawLocationMenu(canvas, obsLatDeg, obsLonDeg); break;
-            
+            case SCREEN_MENU_LOC:  
+                drawLocationMenu(canvas, obsLatDeg, obsLonDeg, useGpsModule, gps.location.isValid(), gps.satellites.value()); 
+                break;         
+            case SCREEN_GPS_INFO:  drawGpsInfoScreen(canvas, gps); break;
             default: break;
+            
         }
         canvas.pushSprite(0,0);
         needsRedraw = false;

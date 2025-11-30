@@ -4,7 +4,7 @@
 #include <M5GFX.h>
 
 // App Version
-#define APP_VERSION "v1.5.00"
+#define APP_VERSION "v1.6.00"
 
 // ---------- Colors ----------
 #define COL_BG        0x0000  // Black
@@ -13,6 +13,14 @@
 #define COL_HEADER    0xFDB4  // NASA gold/orange
 #define COL_SAT_PATH  0x07E0  // Green for radar path
 #define COL_SAT_NOW   0xF800  // Red for current pos
+
+// ---------- GPS Module (CAP LoRa868) ----------
+#define GPS_RX_PIN      15  // ESP32 RX (Receives from GPS TX)
+#define GPS_TX_PIN      13  // ESP32 TX (Sends to GPS RX)
+#define GPS_BAUD        115200
+
+// Shared Globals
+extern bool useGpsModule; // New config flag
 
 // ---------- Geometry ----------
 #define FRAME_MARGIN  5
@@ -29,7 +37,7 @@
 // ----------LEDs------------
 #define LED_PIN         21  // M5StampS3 RGB LED
 #define LED_COUNT       1
-#define LED_BRIGHTNESS  20  // Keep it low (0-255) to save power/eyes
+#define LED_BRIGHTNESS  200  // Keep it low (0-255) to save power/eyes
 
 // ---------- Settings ----------
 #define ISS_TLE_PATH "/apps/iss_tracker/iss.tle"
