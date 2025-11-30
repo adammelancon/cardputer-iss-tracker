@@ -39,6 +39,10 @@ Setup: You just need to enter your Wi-Fi, Lat/Long, and Timezone in the Options 
 | :---: | :---: |
 | <img src="images/Options.jpg" width="300" alt="Options"> |  <img src="images/Location.jpg" width="300" alt="Location"> |
 
+| GPS Status | |
+| :---: | :---: |
+| <img src="images/GPSstatus.jpg" width="300" alt="Options"> |  |
+
 
 
 ## Using the polar plot view
