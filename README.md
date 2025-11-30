@@ -2,6 +2,8 @@
   <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
 </p>
 
+# UPDATE: Added GPS support using the LoRa/GPS cap for the Cardputer Adv.
+
 # Cardputer Adv ISS Tracker
 
 I was looking for a unique project for my Cardputer Adv, and as a ham radio operator I wanted a dedicated tool to track the ISS (and soon maybe even satellites) without needing my phone. So, I wrote this ISS Tracker.
