@@ -31,11 +31,13 @@ void drawHomeScreen(M5Canvas &d) {
     d.println("Change Menu - G0 Btn");
     y += LINE_SPACING;
 
+    // Inside drawHomeScreen(M5Canvas &d)
+
     const char* menu[] = {
         "LIVE     - Position Data",
         "RADAR   - Skyplot View",
         "PASS     - Next Prediction",
-        "OPTIONS - Config/WiFi"
+        "CONFIG  - Press 'c' key"   // <--- CHANGED THIS LINE
     };
 
     for (const char* item : menu) {
@@ -200,21 +202,79 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl) {
     d.printf("Filter > %d deg", minEl);
 }
 
-void drawOptionsScreen(M5Canvas &d, int minEl, int tzOffset) {
-    drawFrame(d, "Options");
+
+// New Helper for consistent menu look
+void drawMenu(M5Canvas &d, String title, const char* items[], int count) {
+    drawFrame(d, title);
     int y = TEXT_TOP + 20;
     
-    d.setCursor(TEXT_LEFT, y); d.println("1) Wi-Fi Setup");
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.println("2) Location Setup");
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.println("3) Force TLE Update");
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.printf("4) Min Elevation - %d", minEl);
-    y += LINE_SPACING;
-    d.setCursor(TEXT_LEFT, y); d.printf("5) Timezone - UTC%+d", tzOffset);
+    for (int i = 0; i < count; i++) {
+        d.setCursor(TEXT_LEFT, y);
+        d.println(items[i]);
+        y += LINE_SPACING;
+    }
     
+    // Footer instruction
+    d.setTextColor(COL_ACCENT);
+    d.setCursor(TEXT_LEFT, d.height() - 22);
+    d.print("Use Keypad #s");
+    d.setTextColor(COL_TEXT);
+}
+
+// 1. The Main Configure Menu
+void drawMainMenu(M5Canvas &d) {
+    const char* items[] = {
+        "1) WiFi Settings >",
+        "2) Satellite / TLE >",
+        "3) Location Setup >",
+        "4) Timezone Setup"
+    };
+    drawMenu(d, "Configuration", items, 4);
+}
+
+// 2. The WiFi Sub-Menu
+void drawWifiMenu(M5Canvas &d, String storedSsid) {
+    const char* items[] = {
+        "1) Scan Networks (Coming Soon)",
+        "2) Manual Entry"
+    };
+    drawMenu(d, "WiFi Setup", items, 2);
+    
+    // Show current
+    d.setCursor(TEXT_LEFT, TEXT_TOP + 70);
+    d.setTextColor(COL_HEADER);
+    d.print("Current: ");
+    d.println(storedSsid);
+}
+
+// 3. The Satellite Sub-Menu
+void drawSatMenu(M5Canvas &d, int minEl) {
+    drawFrame(d, "Satellite Config");
+    int y = TEXT_TOP + 20;
+    
+    d.setCursor(TEXT_LEFT, y); 
+    d.printf("1) Min Elevation: %d deg\n", minEl);
     y += LINE_SPACING;
+    
+    d.setCursor(TEXT_LEFT, y); 
+    d.println("2) Force TLE Update");
+    y += LINE_SPACING;
+    
+    // Show Orbit info at bottom
+    y += 10;
     d.setCursor(TEXT_LEFT, y);
-    d.printf("Orbit - %.3f deg inc", tleIncDeg);
+    d.setTextColor(COL_ACCENT);
+    d.printf("Inc: %.3f  Ecc: %.4f", tleIncDeg, tleEcc);
+}
+
+void drawLocationMenu(M5Canvas &d, double lat, double lon) {
+    drawFrame(d, "Location Setup");
+    int y = TEXT_TOP + 20;
+    
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("1) Set Latitude\n   (Cur: %.4f)\n", lat);
+    y += LINE_SPACING * 2; // Extra space
+    
+    d.setCursor(TEXT_LEFT, y);
+    d.printf("2) Set Longitude\n   (Cur: %.4f)\n", lon);
 }

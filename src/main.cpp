@@ -35,14 +35,20 @@ const int LOS_DURATION_MS = 5000; // How long to stay red (5 seconds)
 
 // --- UI State ---
 enum Screen {
+    // --- DASHBOARD SCREENS (Cycled with Button G0) ---
     SCREEN_HOME = 0,
     SCREEN_LIVE,
     SCREEN_RADAR,
     SCREEN_PASS,
-    SCREEN_OPTIONS,
-    SCREEN_COUNT,
-    SCREEN_WIFI_MENU,
-    SCREEN_LOCATION_MENU
+    // SCREEN_OPTIONS,  <-- REMOVING THIS
+    
+    // --- MENU SCREENS (Accessed via 'c') ---
+    SCREEN_MENU_MAIN,
+    SCREEN_MENU_WIFI,
+    SCREEN_MENU_SAT,
+    SCREEN_MENU_LOC,
+    
+    SCREEN_COUNT // Keep this for the G0 cycling logic
 };
 
 Screen currentScreen = SCREEN_HOME;
@@ -101,13 +107,25 @@ String textInput(const String &initial, const char *prompt) {
         canvas.setTextColor(COL_HEADER);
         canvas.println(value + "_");
         canvas.setTextColor(COL_TEXT);
+        
+        // Helper text
+        canvas.setCursor(TEXT_LEFT, 100);
+        canvas.setTextColor(COL_ACCENT);
+        canvas.print("ENTER=Save  ESC=Cancel");  // <--- Updated Instruction
+        
         canvas.pushSprite(0,0);
 
         if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
             Keyboard_Class::KeysState s = M5Cardputer.Keyboard.keysState();
-            if (s.enter) return value;
-            if (s.del && value.length() > 0) value.remove(value.length()-1);
-            for (auto c : s.word) value += c;
+            
+            if (s.enter) return value; // Save
+            
+            if (s.del && value.length() > 0) value.remove(value.length()-1); // Backspace
+            
+            for (auto c : s.word) {
+                if (c == 27) return initial; // ESC (ASCII 27) -> Cancel
+                value += c;
+            }
         }
     }
 }
@@ -186,72 +204,132 @@ void setup() {
 void loop() {
     M5Cardputer.update();
 
-    if (M5Cardputer.BtnA.wasPressed()) {
-        int next = (int)currentScreen + 1;
-        if (next >= (int)SCREEN_COUNT) next = 0;
-        currentScreen = (Screen)next;
-        needsRedraw = true;
-    }
-
+    // --- 1. KEYBOARD INPUT HANDLING ---
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         Keyboard_Class::KeysState k = M5Cardputer.Keyboard.keysState();
-        
-        if (currentScreen == SCREEN_OPTIONS) {
-            for (auto c : k.word) {
-                if (c == '1') { // Wifi
-                    wifiSsid = textInput(wifiSsid, "SSID:");
-                    wifiPass = textInput(wifiPass, "Pass:");
-                    prefs.begin("iss_cfg", false);
-                    prefs.putString("wifiSsid", wifiSsid);
-                    prefs.putString("wifiPass", wifiPass);
-                    prefs.end();
-                    needsRedraw=true;
+
+        // --- BACK / ESCAPE LOGIC ---
+        // Check for DEL key (Top Right) OR 'ESC' char (27)
+        bool pressedBack = k.del; 
+        for (auto c : k.word) { if (c == 27) pressedBack = true; }
+
+        if (pressedBack) {
+            // Smart Back Navigation
+            if (currentScreen == SCREEN_MENU_WIFI || 
+                currentScreen == SCREEN_MENU_SAT  || 
+                currentScreen == SCREEN_MENU_LOC) {
+                currentScreen = SCREEN_MENU_MAIN; // Submenu -> Main Menu
+            } 
+            else if (currentScreen == SCREEN_MENU_MAIN) {
+                currentScreen = SCREEN_HOME;      // Main Menu -> Home
+            }
+            needsRedraw = true;
+        }
+
+        // --- GLOBAL HOTKEYS ---
+        for (auto c : k.word) {
+            if (c == 'c' || c == 'C') {
+                currentScreen = SCREEN_MENU_MAIN;
+                needsRedraw = true;
+            }
+        }
+
+        // --- MENU SPECIFIC NAVIGATION ---
+        // Only process specific menu keys if we didn't just press Back
+        if (!pressedBack && currentScreen != SCREEN_HOME) {
+            
+            // MAIN MENU
+            if (currentScreen == SCREEN_MENU_MAIN) {
+                for (auto c : k.word) {
+                    if (c == '1') { currentScreen = SCREEN_MENU_WIFI; needsRedraw = true; }
+                    if (c == '2') { currentScreen = SCREEN_MENU_SAT; needsRedraw = true; }
+                    if (c == '3') { currentScreen = SCREEN_MENU_LOC; needsRedraw = true; }
+                    if (c == '4') { 
+                         String t = textInput(String(tzOffsetHours), "UTC Offset:");
+                         tzOffsetHours = t.toInt();
+                         prefs.begin("iss_cfg", false);
+                         prefs.putInt("tzOffset", tzOffsetHours);
+                         prefs.end();
+                         configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
+                         needsRedraw = true;
+                    }
                 }
-                if (c == '2') { // Loc
-                    String l = textInput(String(obsLatDeg), "Lat:");
-                    obsLatDeg = l.toFloat();
-                    String lo = textInput(String(obsLonDeg), "Lon:");
-                    obsLonDeg = lo.toFloat();
-                    prefs.begin("iss_cfg", false);
-                    prefs.putDouble("lat", obsLatDeg);
-                    prefs.putDouble("lon", obsLonDeg);
-                    prefs.end();
-                    setupOrbitLocation(obsLatDeg, obsLonDeg);
-                    needsRedraw=true;
+            }
+            // WIFI MENU
+            else if (currentScreen == SCREEN_MENU_WIFI) {
+                for (auto c : k.word) {
+                    if (c == '2') { 
+                        wifiSsid = textInput(wifiSsid, "SSID:");
+                        wifiPass = textInput(wifiPass, "Pass:");
+                        prefs.begin("iss_cfg", false);
+                        prefs.putString("wifiSsid", wifiSsid);
+                        prefs.putString("wifiPass", wifiPass);
+                        prefs.end();
+                        needsRedraw = true;
+                    }
                 }
-                if (c == '3') { // Update
-                    canvas.fillScreen(COL_BG);
-                    canvas.drawString("Updating...", 50, 50);
-                    canvas.pushSprite(0,0);
-                    connectWiFiAndTime();
-                    downloadTLE();
-                    needsRedraw = true;
+            }
+            // SATELLITE MENU
+            else if (currentScreen == SCREEN_MENU_SAT) {
+                for (auto c : k.word) {
+                    if (c == '1') { 
+                        String m = textInput(String(minElevation), "Min El (deg):");
+                        minElevation = m.toInt();
+                        prefs.begin("iss_cfg", false);
+                        prefs.putInt("minEl", minElevation);
+                        prefs.end();
+                        needsRedraw = true;
+                    }
+                    if (c == '2') { 
+                        canvas.fillScreen(COL_BG);
+                        canvas.drawString("Updating...", 50, 50);
+                        canvas.pushSprite(0,0);
+                        connectWiFiAndTime();
+                        downloadTLE();
+                        needsRedraw = true;
+                    }
                 }
-                if (c == '4') { // Min El
-                    String m = textInput(String(minElevation), "Min El (deg):");
-                    minElevation = m.toInt();
-                    if (minElevation < 0) minElevation = 0;
-                    if (minElevation > 90) minElevation = 90;
-                    prefs.begin("iss_cfg", false);
-                    prefs.putInt("minEl", minElevation);
-                    prefs.end();
-                    needsRedraw=true;
-                }
-                if (c == '5') { // Timezone
-                    String t = textInput(String(tzOffsetHours), "Offset (ex: -6):");
-                    tzOffsetHours = t.toInt();
-                    
-                    prefs.begin("iss_cfg", false);
-                    prefs.putInt("tzOffset", tzOffsetHours);
-                    prefs.end();
-                    
-                    configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
-                    needsRedraw=true;
+            }
+            // LOCATION MENU
+            else if (currentScreen == SCREEN_MENU_LOC) {
+                 for (auto c : k.word) {
+                    if (c == '1') { 
+                        String l = textInput(String(obsLatDeg), "Lat:");
+                        obsLatDeg = l.toFloat();
+                        prefs.begin("iss_cfg", false);
+                        prefs.putDouble("lat", obsLatDeg);
+                        prefs.end();
+                        setupOrbitLocation(obsLatDeg, obsLonDeg);
+                        needsRedraw = true;
+                    }
+                    if (c == '2') {
+                        String lo = textInput(String(obsLonDeg), "Lon:");
+                        obsLonDeg = lo.toFloat();
+                        prefs.begin("iss_cfg", false);
+                        prefs.putDouble("lon", obsLonDeg);
+                        prefs.end();
+                        setupOrbitLocation(obsLatDeg, obsLonDeg);
+                        needsRedraw = true;
+                    }
                 }
             }
         }
     }
 
+    // --- 2. BUTTON INPUT (G0) ---
+    if (M5Cardputer.BtnA.wasPressed()) {
+        // If inside a menu, G0 acts as "Home"
+        if (currentScreen >= SCREEN_MENU_MAIN) {
+            currentScreen = SCREEN_HOME;
+        } else {
+            int next = (int)currentScreen + 1;
+            if (next > (int)SCREEN_PASS) next = SCREEN_HOME;
+            currentScreen = (Screen)next;
+        }
+        needsRedraw = true;
+    }
+
+    // --- 3. BACKGROUND TASKS ---
     unsigned long now = millis();
     if (now - lastOrbitUpdateMs >= 1000) {
         time_t t = time(nullptr);
@@ -259,45 +337,28 @@ void loop() {
         updateSatellitePos(unixtime);
         lastOrbitUpdateMs = now;
         
-        // --- LED LOGIC START ---
+        // LED Logic
         bool currentlyVisible = (sat.satEl > 0);
-
         if (currentlyVisible) {
-            // CASE 1: Satellite is ABOVE horizon -> GREEN
             pixels.setPixelColor(0, pixels.Color(0, 255, 0)); 
-            losTimerActive = false; // Reset LOS timer if it pops back up
-        } 
-        else {
-            // CASE 2: Satellite is BELOW horizon
-            
-            // Check for transition: Was it visible last second?
-            if (wasVisible) {
-                // It JUST went down. Start the Red Timer.
-                losTimerActive = true;
-                losStartTime = millis();
-            }
+            losTimerActive = false; 
+        } else {
+            if (wasVisible) { losTimerActive = true; losStartTime = millis(); }
 
             if (losTimerActive) {
-                // Check if 5 seconds have passed
-                if (millis() - losStartTime < LOS_DURATION_MS) {
-                    pixels.setPixelColor(0, pixels.Color(255, 0, 0)); // RED
-                } else {
-                    pixels.setPixelColor(0, 0); // OFF (Time expired)
-                    losTimerActive = false;
-                }
+                if (millis() - losStartTime < LOS_DURATION_MS) pixels.setPixelColor(0, pixels.Color(255, 0, 0)); 
+                else { pixels.setPixelColor(0, 0); losTimerActive = false; }
             } else {
-                pixels.setPixelColor(0, 0); // OFF (Standard state below horizon)
+                pixels.setPixelColor(0, 0); 
             }
         }
-        
-        pixels.show(); // Apply changes
-        wasVisible = currentlyVisible; // Save state for next loop
-        // --- LED LOGIC END ---
+        pixels.show();
+        wasVisible = currentlyVisible;
 
         if (currentScreen == SCREEN_LIVE || currentScreen == SCREEN_RADAR) {
             needsRedraw = true;
         }
-    } // <--- End of time check
+    } 
 
     if (needsRedraw) {
         canvas.fillScreen(COL_BG);
@@ -310,7 +371,12 @@ void loop() {
             case SCREEN_LIVE:   drawLiveScreen(canvas, tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday, tm->tm_hour, tm->tm_min); break;
             case SCREEN_RADAR:  drawRadarScreen(canvas, unixtime); break;
             case SCREEN_PASS:   drawPassScreen(canvas, unixtime, minElevation); break; 
-            case SCREEN_OPTIONS:drawOptionsScreen(canvas, minElevation, tzOffsetHours); break; 
+            
+            case SCREEN_MENU_MAIN: drawMainMenu(canvas); break;
+            case SCREEN_MENU_WIFI: drawWifiMenu(canvas, wifiSsid); break;
+            case SCREEN_MENU_SAT:  drawSatMenu(canvas, minElevation); break;
+            case SCREEN_MENU_LOC:  drawLocationMenu(canvas, obsLatDeg, obsLonDeg); break;
+            
             default: break;
         }
         canvas.pushSprite(0,0);
