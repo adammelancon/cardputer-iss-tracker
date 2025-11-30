@@ -2,7 +2,8 @@
   <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
 </p>
 
-# UPDATE: Added GPS support using the LoRa/GPS cap for the Cardputer Adv.
+### UPDATE: Added GPS support using the LoRa/GPS cap for the Cardputer Adv.
+
 
 # Cardputer Adv ISS Tracker
 
