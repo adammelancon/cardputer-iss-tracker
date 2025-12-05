@@ -37,7 +37,7 @@ Setup: You just need to enter your Wi-Fi, Lat/Long, and Timezone in the Options 
 
 | Options Menu | Location Menu |
 | :---: | :---: |
-| <img src="images/Options.jpg" width="300" alt="Options"> |   <img src="images/Location2.jpg" width="300" alt="Location">  |
+| <img src="images/config.jpg" width="300" alt="Options"> |   <img src="images/Location2.jpg" width="300" alt="Location">  |
 
 | GPS Status | |
 | :---: | :---: |
