@@ -21,14 +21,22 @@ void drawFrame(M5Canvas &d, String title) {
 }
 
 void drawHomeScreen(M5Canvas &d) {
-    drawFrame(d, "ISS Tracker " APP_VERSION);
+    drawFrame(d, "ISS/Sat Tracker " APP_VERSION);
     
     // UPDATED: Scooted icon left (was -40, now -55)
     d.pushImage(d.width() - 55, 20, 32, 32, ISS_ICON_32x32);
 
-    int y = TEXT_TOP + 20;
-    d.setCursor(TEXT_LEFT, y);
-    d.println("Change Menu - G0 Btn");
+    int y = TEXT_TOP + 25;
+    if (isOrbitReady()) {
+        d.setTextColor(COL_SAT_PATH);
+        d.setCursor(TEXT_LEFT, y);
+        d.printf("Tracking - %s", satName.c_str());
+    } else {
+        d.setTextColor(COL_SAT_NOW);
+        d.setCursor(TEXT_LEFT, y);
+        d.println("NO TLE DATA LOADED");
+    }
+    d.setTextColor(COL_TEXT);
     y += LINE_SPACING;
 
     // Inside drawHomeScreen(M5Canvas &d)
@@ -46,16 +54,8 @@ void drawHomeScreen(M5Canvas &d) {
         y += LINE_SPACING;
     }
 
-    y += LINE_SPACING;
-    if (isOrbitReady()) {
-        d.setTextColor(COL_SAT_PATH);
-        d.setCursor(TEXT_LEFT, y);
-        d.printf("Tracking - %s", satName.c_str());
-    } else {
-        d.setTextColor(COL_SAT_NOW);
-        d.setCursor(TEXT_LEFT, y);
-        d.println("NO TLE DATA LOADED");
-    }
+
+
 }
 
 void drawLiveScreen(M5Canvas &d, int year, int mon, int day, int hr, int min) {
@@ -82,7 +82,7 @@ void drawLiveScreen(M5Canvas &d, int year, int mon, int day, int hr, int min) {
     d.setCursor(TEXT_LEFT, y);
     if (sat.satEl > 0) {
         d.setTextColor(COL_SAT_PATH);
-        d.println("VISIBLE (Acqired)");
+        d.println("VISIBLE (Acquired)");
     } else {
         d.setTextColor(COL_ACCENT);
         d.println("BELOW HORIZON (Loss)");
@@ -248,7 +248,7 @@ void drawMainMenu(M5Canvas &d) {
 // 2. The WiFi Sub-Menu
 void drawWifiMenu(M5Canvas &d, String storedSsid) {
     const char* items[] = {
-        "1) Scan Networks (Coming Soon)",
+        "1) Scan Networks",      // <--- CHANGED: Removed "(Coming Soon)"
         "2) Manual Entry"
     };
     drawMenu(d, "WiFi Setup", items, 2);
@@ -261,7 +261,7 @@ void drawWifiMenu(M5Canvas &d, String storedSsid) {
 }
 
 // 3. The Satellite Sub-Menu
-void drawSatMenu(M5Canvas &d, int minEl) {
+void drawSatMenu(M5Canvas &d, int minEl, int satCat) {
     drawFrame(d, "Satellite Config");
     int y = TEXT_TOP + 20;
     
@@ -270,15 +270,27 @@ void drawSatMenu(M5Canvas &d, int minEl) {
     y += LINE_SPACING;
     
     d.setCursor(TEXT_LEFT, y); 
-    d.println("2) Force TLE Update");
+    d.printf("2) Sat Catalog Num: %d\n", satCat);
+    y += LINE_SPACING;
+
+    d.setCursor(TEXT_LEFT, y); 
+    d.println("3) Reset to ISS 25544 (Default)"); // New
     y += LINE_SPACING;
     
-    // Show Orbit info at bottom
+    d.setCursor(TEXT_LEFT, y); 
+    d.println("4) Update TLE Data >"); // Moved
+    y += LINE_SPACING;
+    
     y += 10;
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_ACCENT);
-    d.printf("Inc: %.3f  Ecc: %.4f", tleIncDeg, tleEcc);
+    if (tleParsedOK) {
+        d.printf("Inc: %.3f  Ecc: %.4f", tleIncDeg, tleEcc);
+    } else {
+        d.print("TLE Data Invalid/Missing");
+    }
 }
+
 
 void drawLocationMenu(M5Canvas &d, double lat, double lon, bool useGps, bool gpsFix, int sats) {
     drawFrame(d, "Location Setup");
@@ -356,4 +368,37 @@ void drawGpsInfoScreen(M5Canvas &d, TinyGPSPlus &gps) {
         d.setTextColor(COL_SAT_NOW);
         d.print("STATUS: NO FIX");
     }
+}
+
+void drawWifiScanResults(M5Canvas &d, int count) {
+    drawFrame(d, "Select Network");
+    int y = TEXT_TOP + 20;
+
+    if (count == 0) {
+        d.setCursor(TEXT_LEFT, y);
+        d.println("No networks found.");
+        d.setCursor(TEXT_LEFT, y + LINE_SPACING);
+        d.println("Press ESC to back.");
+        return;
+    }
+
+    // Limit to 8 networks to fit the screen
+    int limit = (count > 8) ? 8 : count;
+
+    for (int i = 0; i < limit; i++) {
+        d.setCursor(TEXT_LEFT, y);
+        // Format: 1) MyWiFi (-50)
+        // We trim SSID to fit the screen
+        String ssid = WiFi.SSID(i);
+        if (ssid.length() > 15) ssid = ssid.substring(0, 15) + "..";
+        
+        d.printf("%d) %s (%d)\n", i + 1, ssid.c_str(), WiFi.RSSI(i));
+        y += LINE_SPACING;
+    }
+
+    // Footer
+    d.setTextColor(COL_ACCENT);
+    d.setCursor(TEXT_LEFT, d.height() - 22);
+    d.print("Select 1-" + String(limit));
+    d.setTextColor(COL_TEXT);
 }

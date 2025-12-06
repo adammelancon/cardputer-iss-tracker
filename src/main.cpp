@@ -21,13 +21,16 @@ Adafruit_NeoPixel pixels(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 String wifiSsid = WIFI_SSID;
 String wifiPass = WIFI_PSK;
+int wifiScanCount = 0;
 
 double obsLatDeg = 30.22; 
 double obsLonDeg = -92.02;
 int minElevation = DEFAULT_MIN_EL;
 int tzOffsetHours = -6; 
 String satName = "";
+int satCatNumber = 25544;
 bool tleParsedOK = false;
+
 
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(1); // Use UART 1
@@ -51,6 +54,7 @@ enum Screen {
     // --- MENU SCREENS (Accessed via 'c') ---
     SCREEN_MENU_MAIN,
     SCREEN_MENU_WIFI,
+    SCREEN_WIFI_SCAN, // <--- ADD THIS NEW STATE
     SCREEN_MENU_SAT,
     SCREEN_MENU_LOC,
     SCREEN_GPS_INFO,
@@ -93,6 +97,11 @@ bool downloadTLE() {
     if (http.GET() != HTTP_CODE_OK) return false;
     String payload = http.getString();
     http.end();
+
+    // --- FIX: Delete old file first so we don't append ---
+    if (SD.exists(ISS_TLE_PATH)) {
+        SD.remove(ISS_TLE_PATH);
+    }
     
     SD.mkdir("/apps/iss_tracker");
     File f = SD.open(ISS_TLE_PATH, FILE_WRITE);
@@ -191,7 +200,7 @@ void setup() {
     // Draw Text Centered
     canvas.setTextDatum(middle_center);
     canvas.setTextColor(COL_HEADER);
-    canvas.drawString("ISS Tracker", canvas.width() / 2, 45);
+    canvas.drawString("ISS/Satellite Tracker " APP_VERSION, canvas.width() / 2, 45);
     
     // Draw Line
     canvas.drawFastHLine(60, 58, 120, COL_ACCENT);
@@ -267,6 +276,28 @@ void loop() {
             }
         }
 
+        // --- DASHBOARD NAVIGATION (Arrows) ---
+        // Only if we are on dashboard screens
+        if (currentScreen < SCREEN_MENU_MAIN) {
+            for (auto c : k.word) {
+                // Right Arrow ('/' or '>')
+                if (c == '/' || c == '>') {
+                    int next = (int)currentScreen + 1;
+                    if (next > (int)SCREEN_PASS) next = SCREEN_HOME;
+                    currentScreen = (Screen)next;
+                    needsRedraw = true;
+                }
+                
+                // Left Arrow (',' or '<')
+                if (c == ',' || c == '<') {
+                    int prev = (int)currentScreen - 1;
+                    if (prev < 0) prev = SCREEN_PASS;
+                    currentScreen = (Screen)prev;
+                    needsRedraw = true;
+                }
+            }
+        }
+
         // --- MENU SPECIFIC NAVIGATION ---
         // Only process specific menu keys if we didn't just press Back
         if (!pressedBack && currentScreen != SCREEN_HOME) {
@@ -288,16 +319,54 @@ void loop() {
                     }
                 }
             }
-            // WIFI MENU
-            else if (currentScreen == SCREEN_MENU_WIFI) {
+        else if (currentScreen == SCREEN_MENU_WIFI) {
+                        for (auto c : k.word) {
+                            // OPTION 1: SCAN NETWORKS
+                            if (c == '1') { 
+                                // Draw loading screen immediately
+                                canvas.fillScreen(COL_BG);
+                                canvas.setCursor(20, 50);
+                                canvas.setTextSize(1);
+                                canvas.println("Scanning WiFi...");
+                                canvas.pushSprite(0,0);
+                                
+                                // Perform Scan
+                                WiFi.mode(WIFI_STA);
+                                WiFi.disconnect();
+                                wifiScanCount = WiFi.scanNetworks();
+                                
+                                // Switch to Results Screen
+                                currentScreen = SCREEN_WIFI_SCAN;
+                                needsRedraw = true;
+                            }
+                            // OPTION 2: MANUAL ENTRY (Existing code)
+                            if (c == '2') { 
+                                wifiSsid = textInput(wifiSsid, "SSID:");
+                                // ... existing manual entry code ...
+                            }
+                        }
+                    }
+            // NEW: SCAN RESULTS SCREEN
+            else if (currentScreen == SCREEN_WIFI_SCAN) {
                 for (auto c : k.word) {
-                    if (c == '2') { 
-                        wifiSsid = textInput(wifiSsid, "SSID:");
-                        wifiPass = textInput(wifiPass, "Pass:");
+                    int selection = -1;
+                    if (c >= '1' && c <= '9') selection = c - '1';
+                    
+                    if (selection >= 0 && selection < wifiScanCount) {
+                        // Get the SSID from the scan list
+                        wifiSsid = WiFi.SSID(selection);
+                        
+                        // Ask for Password
+                        wifiPass = textInput("", "Password:");
+                        
+                        // Save prefs
                         prefs.begin("iss_cfg", false);
                         prefs.putString("wifiSsid", wifiSsid);
                         prefs.putString("wifiPass", wifiPass);
                         prefs.end();
+                        
+                        // Go back to main menu
+                        currentScreen = SCREEN_MENU_MAIN;
                         needsRedraw = true;
                     }
                 }
@@ -313,14 +382,99 @@ void loop() {
                         prefs.end();
                         needsRedraw = true;
                     }
+                    // 2) Edit Sat Number + AUTO UPDATE
                     if (c == '2') { 
+                        String s = textInput(String(satCatNumber), "Sat Cat #:");
+                        int newVal = s.toInt();
+                        if (newVal > 0 && newVal != satCatNumber) {
+                            satCatNumber = newVal;
+                            prefs.begin("iss_cfg", false);
+                            prefs.putInt("satCat", satCatNumber);
+                            prefs.end();
+                            
+                            // Trigger Auto-Update
+                            canvas.fillScreen(COL_BG);
+                            canvas.drawString("Updating Sat Data...", 20, 50);
+                            canvas.pushSprite(0,0);
+                            
+                            if (connectWiFiAndTime()) {
+                                if (downloadTLE()) {
+                                    canvas.drawString("Success!", 80, 80);
+                                    delay(500);
+                                    // SHOW THE NEW NAME
+                                    canvas.setCursor(20, 100);
+                                    canvas.setTextColor(COL_SAT_PATH);
+                                    canvas.printf("Found: %s", satName.c_str());
+                                } else {
+                                    canvas.drawString("Download Failed!", 20, 80);
+                                    delay(2000);
+                                }
+                                // Disconnect after update to save power
+                                WiFi.disconnect(true);
+                                WiFi.mode(WIFI_OFF);
+                            } else {
+                                canvas.drawString("WiFi Failed!", 20, 80);
+                                delay(2000);
+                            }
+                        }
+                        needsRedraw = true;
+                    }
+
+                    // 3) Reset to ISS + AUTO UPDATE
+                    if (c == '3') { 
+                        if (satCatNumber != 25544) {
+                            satCatNumber = 25544;
+                            prefs.begin("iss_cfg", false);
+                            prefs.putInt("satCat", satCatNumber);
+                            prefs.end();
+                            
+                            // Trigger Auto-Update
+                            canvas.fillScreen(COL_BG);
+                            canvas.drawString("Resetting to ISS...", 20, 50);
+                            canvas.pushSprite(0,0);
+                            
+                            if (connectWiFiAndTime()) {
+                                if (downloadTLE()) {
+                                    canvas.drawString("Success!", 80, 80);
+                                    delay(500);
+                                    // SHOW THE NEW NAME
+                                    canvas.setCursor(20, 100);
+                                    canvas.setTextColor(COL_SAT_PATH);
+                                    canvas.printf("Found: %s", satName.c_str());
+                                } else {
+                                    canvas.drawString("Download Failed!", 20, 80);
+                                    delay(2000);
+                                }
+                                WiFi.disconnect(true);
+                                WiFi.mode(WIFI_OFF);
+                            } else {
+                                canvas.drawString("WiFi Failed!", 20, 80);
+                                delay(2000);
+                            }
+                        }
+                        needsRedraw = true;
+                    }
+
+                    // 4) Update TLE (MOVED FROM '3')
+                    if (c == '4') { 
                         canvas.fillScreen(COL_BG);
                         canvas.drawString("Updating...", 50, 50);
                         canvas.pushSprite(0,0);
                         connectWiFiAndTime();
-                        downloadTLE();
+                        if (downloadTLE()) {
+                             // Success
+                            // SHOW THE NEW NAME
+                            canvas.setCursor(20, 100);
+                            canvas.setTextColor(COL_SAT_PATH);
+                            canvas.printf("Found: %s", satName.c_str());
+                        } else {
+                             canvas.drawString("Update Failed!", 50, 80);
+                             canvas.pushSprite(0,0);
+                             delay(2000);
+                        }
                         needsRedraw = true;
                     }
+                
                 }
             }
             // LOCATION MENU
@@ -440,7 +594,8 @@ else if (currentScreen == SCREEN_MENU_LOC) {
                 break;            
             case SCREEN_MENU_MAIN: drawMainMenu(canvas); break;
             case SCREEN_MENU_WIFI: drawWifiMenu(canvas, wifiSsid); break;
-            case SCREEN_MENU_SAT:  drawSatMenu(canvas, minElevation); break;
+            case SCREEN_WIFI_SCAN: drawWifiScanResults(canvas, wifiScanCount); break;
+            case SCREEN_MENU_SAT:  drawSatMenu(canvas, minElevation, satCatNumber); break;
             case SCREEN_MENU_LOC:  
                 drawLocationMenu(canvas, obsLatDeg, obsLonDeg, useGpsModule, gps.location.isValid(), gps.satellites.value()); 
                 break;         

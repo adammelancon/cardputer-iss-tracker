@@ -10,6 +10,7 @@ void drawPassScreen(M5Canvas &d, unsigned long currentUnix, int minEl, double la
 
 void drawMainMenu(M5Canvas &d);
 void drawWifiMenu(M5Canvas &d, String storedSsid);
-void drawSatMenu(M5Canvas &d, int minEl);
+void drawWifiScanResults(M5Canvas &d, int count);
+void drawSatMenu(M5Canvas &d, int minEl, int satCat);
 void drawLocationMenu(M5Canvas &d, double lat, double lon, bool useGps, bool gpsFix, int sats);
 void drawGpsInfoScreen(M5Canvas &d, TinyGPSPlus &gps);
