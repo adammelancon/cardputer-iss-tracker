@@ -37,6 +37,7 @@ void parseTLEData(const String &rawTLE) {
     // Reset flags
     sgp4Ready = false;
     tleParsedOK = false;
+    satName = "Invalid/No Data";
 
     int firstNL = rawTLE.indexOf('\n');
     if (firstNL < 0) return;

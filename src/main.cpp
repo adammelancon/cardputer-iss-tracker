@@ -92,11 +92,14 @@ bool connectWiFiAndTime() {
 
 bool downloadTLE() {
     if (WiFi.status() != WL_CONNECTED) return false;
-    HTTPClient http;
-    if (!http.begin("https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE")) return false;
+        HTTPClient http;
+        String url = "https://celestrak.org/NORAD/elements/gp.php?CATNR=" + String(satCatNumber) + "&FORMAT=TLE";    
+    
+    if (!http.begin(url)) return false;
+        
     if (http.GET() != HTTP_CODE_OK) return false;
-    String payload = http.getString();
-    http.end();
+        String payload = http.getString();
+        http.end();
 
     // --- FIX: Delete old file first so we don't append ---
     if (SD.exists(ISS_TLE_PATH)) {
