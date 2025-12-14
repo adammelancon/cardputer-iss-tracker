@@ -181,23 +181,12 @@ void setup() {
     obsLonDeg = prefs.getDouble("lon", obsLonDeg);
     minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL);
     tzOffsetHours = prefs.getInt("tzOffset", -6); 
-    useGpsModule = prefs.getBool("useGps", false); // Load preference
+    // useGpsModule = prefs.getBool("useGps", false); // REMOVED: Auto-detect overrides this
     prefs.end();
 
     configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
 
-    // Init GPS Serial if enabled
-    if (useGpsModule) {
-        gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-    }
-
-    // Load TLE
-    String localTle = readFileFromSD(ISS_TLE_PATH);
-    if (localTle != "ERROR") {
-        parseTLEData(localTle);
-    }
-
-    // --- BOOT SCREEN ---
+    // --- BOOT SCREEN & GPS CHECK ---
     canvas.fillScreen(COL_BG);
     
     // Draw Text Centered
@@ -211,11 +200,52 @@ void setup() {
     // Draw Icon Centered
     int iconX = (canvas.width() / 2) - 16;
     canvas.pushImage(iconX, 68, 32, 32, ISS_ICON_32x32);
+
+    // --- NEW GPS DETECTION ---
+    canvas.setTextDatum(bottom_center);
+    canvas.setTextColor(COL_ACCENT);
+    canvas.drawString("Checking GPS Hardware...", canvas.width()/2, 125);
+    canvas.pushSprite(0,0);
+
+    // Always init Serial to check
+    gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    
+    unsigned long startCheck = millis();
+    bool gpsFound = false;
+    // Listen for 1.5 seconds for ANY data
+    while (millis() - startCheck < 1500) {
+        if (gpsSerial.available()) {
+            gpsFound = true;
+            break;
+        }
+    }
+
+    // Clear the "Checking" text area
+    canvas.fillRect(0, 110, 240, 25, COL_BG);
+
+    if (gpsFound) {
+        useGpsModule = true;
+        canvas.setTextColor(COL_SAT_PATH); // Green
+        canvas.drawString("GPS Module Detected!", canvas.width()/2, 125);
+    } else {
+        useGpsModule = false;
+        canvas.setTextColor(COL_SAT_NOW); // Red/Orange
+        canvas.drawString("No GPS Found - Manual Mode", canvas.width()/2, 125);
+        // We can keep serial open or close it. 
+        // Keeping it open allows hot-plugging if we wanted, but for now we stick to boot detection.
+    }
+    canvas.pushSprite(0,0);
+    delay(1000); // Let user see the result
     
     // Reset Datum for normal text
     canvas.setTextDatum(top_left);
-    canvas.pushSprite(0,0);
     // -----------------------
+
+    // Load TLE
+    String localTle = readFileFromSD(ISS_TLE_PATH);
+    if (localTle != "ERROR") {
+        parseTLEData(localTle);
+    }
     
     if (connectWiFiAndTime()) {
          downloadTLE();
@@ -486,18 +516,12 @@ else if (currentScreen == SCREEN_MENU_LOC) {
                     // TOGGLE GPS MODE
                     if (c == '1') { 
                         useGpsModule = !useGpsModule;
-                        
-                        // Save Preference
-                        prefs.begin("iss_cfg", false);
+                        // Save Preference (Optional: remove this if you want it ONLY to be auto-detected)
+                        // But keeping it allows manual override until next boot
+                        /* prefs.begin("iss_cfg", false);
                         prefs.putBool("useGps", useGpsModule);
-                        prefs.end();
-                        
-                        // Start/Stop Serial
-                        if (useGpsModule) {
-                            gpsSerial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-                        } else {
-                            // Keeping serial open is fine, or you can gpsSerial.end();
-                        }
+                        prefs.end(); 
+                        */
                         needsRedraw = true;
                     }
                     
