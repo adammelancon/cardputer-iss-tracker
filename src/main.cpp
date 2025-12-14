@@ -30,6 +30,7 @@ int tzOffsetHours = -6;
 String satName = "";
 int satCatNumber = 25544;
 bool tleParsedOK = false;
+bool isTimeSet = false; // New flag to track if clock is valid
 
 
 TinyGPSPlus gps;
@@ -49,12 +50,11 @@ enum Screen {
     SCREEN_LIVE,
     SCREEN_RADAR,
     SCREEN_PASS,
-    // SCREEN_OPTIONS,  <-- REMOVING THIS
     
     // --- MENU SCREENS (Accessed via 'c') ---
     SCREEN_MENU_MAIN,
     SCREEN_MENU_WIFI,
-    SCREEN_WIFI_SCAN, // <--- ADD THIS NEW STATE
+    SCREEN_WIFI_SCAN,
     SCREEN_MENU_SAT,
     SCREEN_MENU_LOC,
     SCREEN_GPS_INFO,
@@ -90,6 +90,47 @@ bool connectWiFiAndTime() {
     return getLocalTime(&t, 2000);
 }
 
+// --- NEW FUNCTION: GPS TIME SYNC (Corrected) ---
+void syncTimeFromGPS() {
+    // Only sync if we have valid date/time and it is fresh (<1s old)
+    if (gps.date.isValid() && gps.time.isValid() && gps.time.age() < 1000) {
+        
+        struct tm t = {0};
+        t.tm_year = gps.date.year() - 1900;
+        t.tm_mon  = gps.date.month() - 1;
+        t.tm_mday = gps.date.day();
+        t.tm_hour = gps.time.hour();
+        t.tm_min  = gps.time.minute();
+        t.tm_sec  = gps.time.second();
+        
+        // Standard portable replacement for timegm:
+        // 1. Save current TZ environment variable
+        String oldTz = getenv("TZ") ? getenv("TZ") : "";
+        
+        // 2. Set TZ to UTC temporarily. 
+        // This forces mktime() to treat the struct tm as UTC.
+        setenv("TZ", "UTC0", 1);
+        tzset();
+        
+        // 3. Convert to time_t
+        time_t utcTime = mktime(&t);
+        
+        // 4. Restore original TZ
+        if (oldTz.length() > 0) {
+            setenv("TZ", oldTz.c_str(), 1);
+        } else {
+            unsetenv("TZ");
+        }
+        tzset(); // Apply the restore
+
+        // 5. Set System Time
+        struct timeval tv = { .tv_sec = utcTime, .tv_usec = 0 };
+        settimeofday(&tv, NULL);
+        
+        isTimeSet = true;
+    }
+}
+
 bool downloadTLE() {
     if (WiFi.status() != WL_CONNECTED) return false;
         HTTPClient http;
@@ -101,7 +142,7 @@ bool downloadTLE() {
         String payload = http.getString();
         http.end();
 
-    // --- FIX: Delete old file first so we don't append ---
+    // Delete old file first so we don't append
     if (SD.exists(ISS_TLE_PATH)) {
         SD.remove(ISS_TLE_PATH);
     }
@@ -130,7 +171,7 @@ String textInput(const String &initial, const char *prompt) {
         // Helper text
         canvas.setCursor(TEXT_LEFT, 100);
         canvas.setTextColor(COL_ACCENT);
-        canvas.print("ENTER=Save  ESC=Cancel");  // <--- Updated Instruction
+        canvas.print("ENTER=Save  ESC=Cancel");
         
         canvas.pushSprite(0,0);
 
@@ -181,23 +222,17 @@ void setup() {
     obsLonDeg = prefs.getDouble("lon", obsLonDeg);
     minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL);
     tzOffsetHours = prefs.getInt("tzOffset", -6); 
-    // useGpsModule = prefs.getBool("useGps", false); // REMOVED: Auto-detect overrides this
     prefs.end();
 
     configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
 
     // --- BOOT SCREEN & GPS CHECK ---
     canvas.fillScreen(COL_BG);
-    
-    // Draw Text Centered
     canvas.setTextDatum(middle_center);
     canvas.setTextColor(COL_HEADER);
     canvas.drawString("ISS/Satellite Tracker " APP_VERSION, canvas.width() / 2, 45);
-    
-    // Draw Line
     canvas.drawFastHLine(60, 58, 120, COL_ACCENT);
     
-    // Draw Icon Centered
     int iconX = (canvas.width() / 2) - 16;
     canvas.pushImage(iconX, 68, 32, 32, ISS_ICON_32x32);
 
@@ -231,13 +266,9 @@ void setup() {
         useGpsModule = false;
         canvas.setTextColor(COL_SAT_NOW); // Red/Orange
         canvas.drawString("No GPS Found - Manual Mode", canvas.width()/2, 125);
-        // We can keep serial open or close it. 
-        // Keeping it open allows hot-plugging if we wanted, but for now we stick to boot detection.
     }
     canvas.pushSprite(0,0);
-    delay(1000); // Let user see the result
-    
-    // Reset Datum for normal text
+    delay(1000); 
     canvas.setTextDatum(top_left);
     // -----------------------
 
@@ -248,6 +279,7 @@ void setup() {
     }
     
     if (connectWiFiAndTime()) {
+         isTimeSet = true; // Mark time as set via NTP
          downloadTLE();
          WiFi.disconnect(true);
          WiFi.mode(WIFI_OFF);
@@ -267,11 +299,14 @@ void loop() {
         if (gps.location.isUpdated()) {
             obsLatDeg = gps.location.lat();
             obsLonDeg = gps.location.lng();
-            setupOrbitLocation(obsLatDeg, obsLonDeg); // Update SGP4 instantly
+            setupOrbitLocation(obsLatDeg, obsLonDeg);
             
-            // Optional: Sync system time from GPS if valid
-            if (gps.time.isValid() && gps.date.isValid() && gps.time.age() < 1000) {
-                 // You could implement setTime() here if WiFi NTP fails!
+            // --- TIME SYNC LOGIC ---
+            // Sync from GPS every 60 seconds to keep the system clock accurate
+            static unsigned long lastTimeSync = 0;
+            if (millis() - lastTimeSync > 60000) { 
+                syncTimeFromGPS();
+                lastTimeSync = millis();
             }
         }
     }
@@ -281,22 +316,20 @@ void loop() {
         Keyboard_Class::KeysState k = M5Cardputer.Keyboard.keysState();
 
         // --- BACK / ESCAPE LOGIC ---
-        // Check for DEL key (Top Right) OR 'ESC' char (27)
         bool pressedBack = k.del; 
         for (auto c : k.word) { if (c == 27) pressedBack = true; }
 
         if (pressedBack) {
-            // Smart Back Navigation
             if (currentScreen == SCREEN_MENU_WIFI || 
                 currentScreen == SCREEN_MENU_SAT  || 
                 currentScreen == SCREEN_MENU_LOC) {
-                currentScreen = SCREEN_MENU_MAIN; // Submenu -> Main Menu
+                currentScreen = SCREEN_MENU_MAIN; 
             } 
-            else if (currentScreen == SCREEN_GPS_INFO) { // <--- Add this
-                currentScreen = SCREEN_MENU_LOC;         // Back to Loc Menu
+            else if (currentScreen == SCREEN_GPS_INFO) {
+                currentScreen = SCREEN_MENU_LOC;
             }
             else if (currentScreen == SCREEN_MENU_MAIN) {
-                currentScreen = SCREEN_HOME;      // Main Menu -> Home
+                currentScreen = SCREEN_HOME;
             }
             needsRedraw = true;
         }
@@ -310,7 +343,6 @@ void loop() {
         }
 
         // --- DASHBOARD NAVIGATION (Arrows) ---
-        // Only if we are on dashboard screens
         if (currentScreen < SCREEN_MENU_MAIN) {
             for (auto c : k.word) {
                 // Right Arrow ('/' or '>')
@@ -332,7 +364,6 @@ void loop() {
         }
 
         // --- MENU SPECIFIC NAVIGATION ---
-        // Only process specific menu keys if we didn't just press Back
         if (!pressedBack && currentScreen != SCREEN_HOME) {
             
             // MAIN MENU
@@ -347,58 +378,46 @@ void loop() {
                          prefs.begin("iss_cfg", false);
                          prefs.putInt("tzOffset", tzOffsetHours);
                          prefs.end();
+                         // Re-apply timezone if changed
                          configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
                          needsRedraw = true;
                     }
                 }
             }
-        else if (currentScreen == SCREEN_MENU_WIFI) {
-                        for (auto c : k.word) {
-                            // OPTION 1: SCAN NETWORKS
-                            if (c == '1') { 
-                                // Draw loading screen immediately
-                                canvas.fillScreen(COL_BG);
-                                canvas.setCursor(20, 50);
-                                canvas.setTextSize(1);
-                                canvas.println("Scanning WiFi...");
-                                canvas.pushSprite(0,0);
-                                
-                                // Perform Scan
-                                WiFi.mode(WIFI_STA);
-                                WiFi.disconnect();
-                                wifiScanCount = WiFi.scanNetworks();
-                                
-                                // Switch to Results Screen
-                                currentScreen = SCREEN_WIFI_SCAN;
-                                needsRedraw = true;
-                            }
-                            // OPTION 2: MANUAL ENTRY (Existing code)
-                            if (c == '2') { 
-                                wifiSsid = textInput(wifiSsid, "SSID:");
-                                // ... existing manual entry code ...
-                            }
-                        }
+            // WIFI MENU
+            else if (currentScreen == SCREEN_MENU_WIFI) {
+                for (auto c : k.word) {
+                    if (c == '1') { // Scan
+                        canvas.fillScreen(COL_BG);
+                        canvas.setCursor(20, 50);
+                        canvas.setTextSize(1);
+                        canvas.println("Scanning WiFi...");
+                        canvas.pushSprite(0,0);
+                        WiFi.mode(WIFI_STA);
+                        WiFi.disconnect();
+                        wifiScanCount = WiFi.scanNetworks();
+                        currentScreen = SCREEN_WIFI_SCAN;
+                        needsRedraw = true;
                     }
-            // NEW: SCAN RESULTS SCREEN
+                    if (c == '2') { // Manual
+                        wifiSsid = textInput(wifiSsid, "SSID:");
+                        // Then user would enter password logic here if we kept it
+                    }
+                }
+            }
+            // SCAN RESULTS SCREEN
             else if (currentScreen == SCREEN_WIFI_SCAN) {
                 for (auto c : k.word) {
                     int selection = -1;
                     if (c >= '1' && c <= '9') selection = c - '1';
                     
                     if (selection >= 0 && selection < wifiScanCount) {
-                        // Get the SSID from the scan list
                         wifiSsid = WiFi.SSID(selection);
-                        
-                        // Ask for Password
                         wifiPass = textInput("", "Password:");
-                        
-                        // Save prefs
                         prefs.begin("iss_cfg", false);
                         prefs.putString("wifiSsid", wifiSsid);
                         prefs.putString("wifiPass", wifiPass);
                         prefs.end();
-                        
-                        // Go back to main menu
                         currentScreen = SCREEN_MENU_MAIN;
                         needsRedraw = true;
                     }
@@ -415,8 +434,7 @@ void loop() {
                         prefs.end();
                         needsRedraw = true;
                     }
-                    // 2) Edit Sat Number + AUTO UPDATE
-                    if (c == '2') { 
+                    if (c == '2') { // Edit ID
                         String s = textInput(String(satCatNumber), "Sat Cat #:");
                         int newVal = s.toInt();
                         if (newVal > 0 && newVal != satCatNumber) {
@@ -425,16 +443,15 @@ void loop() {
                             prefs.putInt("satCat", satCatNumber);
                             prefs.end();
                             
-                            // Trigger Auto-Update
                             canvas.fillScreen(COL_BG);
                             canvas.drawString("Updating Sat Data...", 20, 50);
                             canvas.pushSprite(0,0);
                             
                             if (connectWiFiAndTime()) {
+                                isTimeSet = true; // Mark time valid
                                 if (downloadTLE()) {
                                     canvas.drawString("Success!", 80, 80);
                                     delay(500);
-                                    // SHOW THE NEW NAME
                                     canvas.setCursor(20, 100);
                                     canvas.setTextColor(COL_SAT_PATH);
                                     canvas.printf("Found: %s", satName.c_str());
@@ -442,7 +459,6 @@ void loop() {
                                     canvas.drawString("Download Failed!", 20, 80);
                                     delay(2000);
                                 }
-                                // Disconnect after update to save power
                                 WiFi.disconnect(true);
                                 WiFi.mode(WIFI_OFF);
                             } else {
@@ -452,25 +468,22 @@ void loop() {
                         }
                         needsRedraw = true;
                     }
-
-                    // 3) Reset to ISS + AUTO UPDATE
-                    if (c == '3') { 
+                    if (c == '3') { // Reset to ISS
                         if (satCatNumber != 25544) {
                             satCatNumber = 25544;
                             prefs.begin("iss_cfg", false);
                             prefs.putInt("satCat", satCatNumber);
                             prefs.end();
                             
-                            // Trigger Auto-Update
                             canvas.fillScreen(COL_BG);
                             canvas.drawString("Resetting to ISS...", 20, 50);
                             canvas.pushSprite(0,0);
                             
                             if (connectWiFiAndTime()) {
+                                isTimeSet = true;
                                 if (downloadTLE()) {
                                     canvas.drawString("Success!", 80, 80);
                                     delay(500);
-                                    // SHOW THE NEW NAME
                                     canvas.setCursor(20, 100);
                                     canvas.setTextColor(COL_SAT_PATH);
                                     canvas.printf("Found: %s", satName.c_str());
@@ -487,45 +500,39 @@ void loop() {
                         }
                         needsRedraw = true;
                     }
-
-                    // 4) Update TLE (MOVED FROM '3')
-                    if (c == '4') { 
+                    if (c == '4') { // Update TLE
                         canvas.fillScreen(COL_BG);
                         canvas.drawString("Updating...", 50, 50);
                         canvas.pushSprite(0,0);
-                        connectWiFiAndTime();
-                        if (downloadTLE()) {
-                             // Success
-                            // SHOW THE NEW NAME
-                            canvas.setCursor(20, 100);
-                            canvas.setTextColor(COL_SAT_PATH);
-                            canvas.printf("Found: %s", satName.c_str());
+                        if (connectWiFiAndTime()) {
+                            isTimeSet = true; 
+                            if (downloadTLE()) {
+                                canvas.setCursor(20, 100);
+                                canvas.setTextColor(COL_SAT_PATH);
+                                canvas.printf("Found: %s", satName.c_str());
+                            } else {
+                                 canvas.drawString("Update Failed!", 50, 80);
+                                 canvas.pushSprite(0,0);
+                                 delay(2000);
+                            }
+                            WiFi.disconnect(true);
+                            WiFi.mode(WIFI_OFF);
                         } else {
-                             canvas.drawString("Update Failed!", 50, 80);
+                             canvas.drawString("WiFi Failed!", 50, 80);
                              canvas.pushSprite(0,0);
                              delay(2000);
                         }
                         needsRedraw = true;
                     }
-                
                 }
             }
             // LOCATION MENU
-else if (currentScreen == SCREEN_MENU_LOC) {
+            else if (currentScreen == SCREEN_MENU_LOC) {
                  for (auto c : k.word) {
-                    // TOGGLE GPS MODE
                     if (c == '1') { 
                         useGpsModule = !useGpsModule;
-                        // Save Preference (Optional: remove this if you want it ONLY to be auto-detected)
-                        // But keeping it allows manual override until next boot
-                        /* prefs.begin("iss_cfg", false);
-                        prefs.putBool("useGps", useGpsModule);
-                        prefs.end(); 
-                        */
                         needsRedraw = true;
                     }
-                    
-                    // EDIT LAT (Only if Manual)
                     if (c == '2') { 
                         if (!useGpsModule) {
                             String l = textInput(String(obsLatDeg), "Lat:");
@@ -537,8 +544,6 @@ else if (currentScreen == SCREEN_MENU_LOC) {
                         }
                         needsRedraw = true;
                     }
-                    
-                    // EDIT LON (Only if Manual)
                     if (c == '3') {
                         if (!useGpsModule) {
                             String lo = textInput(String(obsLonDeg), "Lon:");
@@ -550,13 +555,12 @@ else if (currentScreen == SCREEN_MENU_LOC) {
                         }
                         needsRedraw = true;
                     }
-
                     if (c == '4') {
                         if (useGpsModule) {
                             currentScreen = SCREEN_GPS_INFO;
                             needsRedraw = true;
                         }
-            }
+                    }
                 }
             }
         }
@@ -564,7 +568,6 @@ else if (currentScreen == SCREEN_MENU_LOC) {
 
     // --- 2. BUTTON INPUT (G0) ---
     if (M5Cardputer.BtnA.wasPressed()) {
-        // If inside a menu, G0 acts as "Home"
         if (currentScreen >= SCREEN_MENU_MAIN) {
             currentScreen = SCREEN_HOME;
         } else {
