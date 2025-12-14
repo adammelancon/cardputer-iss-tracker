@@ -270,22 +270,23 @@ void drawSatMenu(M5Canvas &d, int minEl, int satCat) {
     y += LINE_SPACING;
     
     d.setCursor(TEXT_LEFT, y); 
-    d.printf("2) Sat Catalog Num: %d\n", satCat);
+    d.println("2) Select Favorite >"); // Points to new menu
     y += LINE_SPACING;
 
     d.setCursor(TEXT_LEFT, y); 
-    d.println("3) Reset to ISS 25544 (Default)"); // New
+    d.printf("3) Manual Entry (%d) >\n", satCat); // Moved
     y += LINE_SPACING;
     
     d.setCursor(TEXT_LEFT, y); 
-    d.println("4) Update TLE Data >"); // Moved
+    d.println("4) Force TLE Update >");
     y += LINE_SPACING;
     
+    // ... footer logic ...
     y += 10;
     d.setCursor(TEXT_LEFT, y);
     d.setTextColor(COL_ACCENT);
     if (tleParsedOK) {
-        d.printf("Inc: %.3f  Ecc: %.4f", tleIncDeg, tleEcc);
+        d.printf("Tracking: %s", satName.c_str());
     } else {
         d.print("TLE Data Invalid/Missing");
     }
@@ -402,3 +403,59 @@ void drawWifiScanResults(M5Canvas &d, int count) {
     d.print("Select 1-" + String(limit));
     d.setTextColor(COL_TEXT);
 }
+
+void drawSatSelector(M5Canvas &d, const char* names[], int ids[], int count) {
+    drawFrame(d, "Select Satellite");
+    int y = TEXT_TOP + 20;
+
+    int limit = (count > 8) ? 8 : count; // Safety limit for screen height
+
+    for (int i = 0; i < limit; i++) {
+        d.setCursor(TEXT_LEFT, y);
+        d.printf("%d) %s\n", i + 1, names[i]);
+        y += LINE_SPACING;
+    }
+// Footer
+    d.setTextColor(COL_ACCENT);
+    d.setCursor(TEXT_LEFT, d.height() - 22);
+    d.print("Select 1-" + String(limit));
+    d.setTextColor(COL_TEXT);
+}
+
+void drawSatSelector(M5Canvas &d, const char* names[], int ids[], int count, int offset) {
+    drawFrame(d, "Select Satellite");
+    int y = TEXT_TOP + 20;
+
+    // We can fit 4 items comfortably
+    int itemsPerPage = 4;
+    
+    // Calculate the slice to show
+    int end = offset + itemsPerPage;
+    if (end > count) end = count;
+
+    for (int i = offset; i < end; i++) {
+        d.setCursor(TEXT_LEFT, y);
+        // The number key corresponds to the relative position (1-5)
+        d.printf("%d) %s\n", (i - offset) + 1, names[i]);
+        y += LINE_SPACING;
+    }
+
+    // Dynamic Footer with Visual Indicators
+    d.setTextColor(COL_ACCENT);
+    d.setCursor(TEXT_LEFT, d.height() - 24);
+    
+    String nav = "Select No.";
+    
+    // Visual Indicator for "More Above"
+    if (offset > 0) {
+        nav += " | < Up"; 
+    }
+    
+    // Visual Indicator for "More Below"
+    if (end < count) {
+        nav += " | > Down"; 
+    }
+    
+    d.print(nav);
+    d.setTextColor(COL_TEXT);
+}     
