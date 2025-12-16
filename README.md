@@ -55,13 +55,17 @@ More can be found at https://www.n2yo.com/
 | :---: | :---: |
 | <img src="images/Polar.jpg" width="300" alt="Polar View"> | <img src="images/Predict.jpg" width="300" alt="Pass Prediction"> |
 
-| Options Menu | Location Menu |
+| Options Menu | Location Menu (No GPS) |
 | :---: | :---: |
 | <img src="images/config.jpg" width="300" alt="Options"> |   <img src="images/Location2.jpg" width="300" alt="Location">  |
 
-| GPS Status | |
+| GPS Status | Location Menu (GPS) |
 | :---: | :---: |
 | <img src="images/GPSStatus.jpg" width="300" alt="Options"> |  <img src="images/Location1.jpg" width="300" alt="Location"> |
+
+| Satellite Config | Select Satellite |
+| :---: | :---: |
+| <img src="images/satconfig.jpg" width="300" alt="Options"> |  <img src="images/selectsat.jpg" width="300" alt="Location"> |
 
 ## Using the polar plot view
 - Imagine you are looking down at a compass.
