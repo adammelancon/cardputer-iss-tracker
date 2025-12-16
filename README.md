@@ -2,15 +2,13 @@
   <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
 </p>
 
-### UPDATE: Now v2.0 - Universal Satellite Tracker with GPS & WiFi Scanning!
-
 # Cardputer Adv ISS/Satellite Tracker
 
 I was looking for a unique project for my Cardputer Adv, and as a ham radio operator, I wanted a dedicated tool to track the ISS (and now **any** satellite) without needing my phone. So, I wrote this Tracker.
 
 It calculates live positions and future passes for the ISS or any other object in the NORAD catalog in real-time.
 
-## Features v2.0
+## Features
 
 - **Universal Tracking:** You are no longer limited to the ISS! Enter any NORAD Catalog Number in the settings to track satellites like Hubble, Tiangong, or NOAA weather satellites.
 - **WiFi Network Scanner:** No need to manually type your SSID. The new menu scans for networks and lets you select one from a list.
