@@ -311,6 +311,99 @@ void setup() {
     setupOrbitLocation(obsLatDeg, obsLonDeg);
 }
 
+// --- SCREENSHOT FUNCTIONALITY ---
+
+// Helper: Find the next available screenshot filename
+String getNextScreenshotFileName() {
+    if (!SD.exists("/satscreenshots")) {
+        SD.mkdir("/satscreenshots");
+    }
+
+    int num = 1;
+    String fileName;
+    while (true) {
+        char buf[32];
+        snprintf(buf, sizeof(buf), "/satscreenshots/snap%03d.bmp", num);
+        fileName = String(buf);
+        if (!SD.exists(fileName)) {
+            break;
+        }
+        num++;
+    }
+    return fileName;
+}
+
+void takeScreenshot() {
+    // 1. Visual Queue: Draw a white flash or text to know it triggered
+    // We draw directly to Display, bypassing the canvas sprite for a moment
+    M5Cardputer.Display.setTextDatum(top_right);
+    M5Cardputer.Display.setTextColor(TFT_RED); // Red text so it's visible on black
+    M5Cardputer.Display.drawString("SNAP!", 235, 5);
+
+    // 2. Prepare File
+    String fileName = getNextScreenshotFileName();
+    File file = SD.open(fileName, FILE_WRITE);
+    if (!file) {
+        Serial.println("Failed to open file for writing");
+        return;
+    }
+
+    // 3. BMP Header Construction (240x135 24-bit)
+    int w = 240;
+    int h = 135;
+    int rowSize = (w * 3 + 3) & ~3; // Align to 4 bytes
+    int imageSize = rowSize * h;
+    int fileSize = 54 + imageSize;
+    
+    // Header (54 bytes)
+    uint8_t header[54] = {
+        'B', 'M',  // Signature
+        (uint8_t)(fileSize), (uint8_t)(fileSize >> 8), (uint8_t)(fileSize >> 16), (uint8_t)(fileSize >> 24), // File Size
+        0, 0, 0, 0, // Reserved
+        54, 0, 0, 0, // Offset to data
+        40, 0, 0, 0, // Header size
+        (uint8_t)(w), (uint8_t)(w >> 8), (uint8_t)(w >> 16), (uint8_t)(w >> 24), // Width
+        (uint8_t)(h), (uint8_t)(h >> 8), (uint8_t)(h >> 16), (uint8_t)(h >> 24), // Height (positive = bottom-up)
+        1, 0, // Planes
+        24, 0, // BPP
+        0, 0, 0, 0, // Compression
+        0, 0, 0, 0, // Image size (can be 0)
+        0, 0, 0, 0, // X ppm
+        0, 0, 0, 0, // Y ppm
+        0, 0, 0, 0, // Colors used
+        0, 0, 0, 0  // Important colors
+    };
+    file.write(header, 54);
+
+    // 4. Read Pixel Data
+    // BMP is stored bottom-to-top, BGR format
+    uint8_t *lineBuffer = (uint8_t*)malloc(rowSize);
+    if (!lineBuffer) {
+        file.close();
+        return;
+    }
+
+    // Read from Hardware Display (not Sprite) line by line
+    for (int y = h - 1; y >= 0; y--) {
+        M5Cardputer.Display.readRectRGB(0, y, w, 1, lineBuffer);
+        
+        // Convert RGB to BGR in place
+        for (int x = 0; x < w; x++) {
+            uint8_t r = lineBuffer[x * 3];
+            uint8_t b = lineBuffer[x * 3 + 2];
+            lineBuffer[x * 3] = b;
+            lineBuffer[x * 3 + 2] = r;
+        }
+        file.write(lineBuffer, rowSize);
+    }
+
+    free(lineBuffer);
+    file.close();
+    
+    // Clear the "SNAP!" text by forcing a redraw next loop
+    needsRedraw = true; 
+}
+
 void loop() {
     M5Cardputer.update();
 
@@ -366,7 +459,13 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
                 currentScreen = SCREEN_MENU_MAIN;
                 needsRedraw = true;
             }
+            // --- NEW SCREENSHOT HOTKEY ---
+            if (c == 'p' || c == 'P') {
+                takeScreenshot();
+            }
         }
+
+
 
         // --- DASHBOARD NAVIGATION (Arrows) ---
         if (currentScreen < SCREEN_MENU_MAIN) {
@@ -653,3 +752,5 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
     
     delay(20);
 }
+
+
