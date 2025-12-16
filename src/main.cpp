@@ -31,6 +31,7 @@ String satName = "";
 int satCatNumber = 25544;
 bool tleParsedOK = false;
 bool isTimeSet = false; // New flag to track if clock is valid
+bool soundEnabled = true; // Default to ON
 
 
 TinyGPSPlus gps;
@@ -59,6 +60,7 @@ enum Screen {
     SCREEN_SAT_SELECT,
     SCREEN_MENU_LOC,
     SCREEN_GPS_INFO,
+    SCREEN_MENU_AUDIO,
     
     SCREEN_COUNT // Keep this for the G0 cycling logic
 };
@@ -245,6 +247,7 @@ void setup() {
     obsLonDeg = prefs.getDouble("lon", obsLonDeg);
     minElevation = prefs.getInt("minEl", DEFAULT_MIN_EL);
     tzOffsetHours = prefs.getInt("tzOffset", -6); 
+    soundEnabled = prefs.getBool("sound", true); // Load saved setting
     prefs.end();
 
     configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
@@ -404,6 +407,24 @@ void takeScreenshot() {
     needsRedraw = true; 
 }
 
+void playAosSequence() {
+    // Note 1
+    M5Cardputer.Speaker.tone(NOTE_1_FREQ, NOTE_1_DUR);
+    delay(NOTE_1_DUR + NOTE_GAP);
+
+    // Note 2
+    M5Cardputer.Speaker.tone(NOTE_2_FREQ, NOTE_2_DUR);
+    delay(NOTE_2_DUR + NOTE_GAP);
+
+    // Note 3
+    M5Cardputer.Speaker.tone(NOTE_3_FREQ, NOTE_3_DUR);
+    delay(NOTE_3_DUR + NOTE_GAP);
+
+    // Note 4
+    M5Cardputer.Speaker.tone(NOTE_4_FREQ, NOTE_4_DUR);
+    // No delay needed after the last note
+}
+
 void loop() {
     M5Cardputer.update();
 
@@ -441,9 +462,10 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
             }
             else if (currentScreen == SCREEN_MENU_WIFI || 
                 currentScreen == SCREEN_MENU_SAT  || 
-                currentScreen == SCREEN_MENU_LOC) {
+                currentScreen == SCREEN_MENU_LOC  || 
+                currentScreen == SCREEN_MENU_AUDIO) { // <--- ADD THIS LINE
                 currentScreen = SCREEN_MENU_MAIN; 
-            } 
+            }
             else if (currentScreen == SCREEN_GPS_INFO) {
                 currentScreen = SCREEN_MENU_LOC;
             }
@@ -503,6 +525,10 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
                          configTime(tzOffsetHours * 3600, 0, "pool.ntp.org");
                          needsRedraw = true;
                     }
+                    if (c == '5') { 
+                    currentScreen = SCREEN_MENU_AUDIO; 
+                    needsRedraw = true; 
+                    }
                 }
             }
             
@@ -544,7 +570,21 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
                     }
                 }
             }
-            
+            // ... ADD THIS NEW BLOCK for Audio Menu ...
+            else if (currentScreen == SCREEN_MENU_AUDIO) {
+                for (auto c : k.word) {
+                    if (c == '1') {
+                        soundEnabled = !soundEnabled;
+                        prefs.begin("iss_cfg", false);
+                        prefs.putBool("sound", soundEnabled);
+                        prefs.end();
+                        needsRedraw = true;
+                    }
+                    if (c == '2') {
+                        playAosSequence(); // Much cleaner!
+                    }
+                }
+            }            
             // SATELLITE MENU
             else if (currentScreen == SCREEN_MENU_SAT) {
                 for (auto c : k.word) {
@@ -690,6 +730,14 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         
         // LED Logic
         bool currentlyVisible = (sat.satEl > 0);
+
+        // CHECK FOR AOS (Rise)
+        if (currentlyVisible && !wasVisible) {
+            if (soundEnabled) {
+                playAosSequence();
+            }
+        }
+
         if (currentlyVisible) {
             pixels.setPixelColor(0, pixels.Color(0, 255, 0)); 
             losTimerActive = false; 
@@ -703,6 +751,7 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
                 pixels.setPixelColor(0, 0); 
             }
         }
+        
         pixels.show();
         wasVisible = currentlyVisible;
 
@@ -743,6 +792,7 @@ if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
                 drawLocationMenu(canvas, obsLatDeg, obsLonDeg, useGpsModule, gps.location.isValid(), gps.satellites.value()); 
                 break;         
             case SCREEN_GPS_INFO:  drawGpsInfoScreen(canvas, gps); break;
+            case SCREEN_MENU_AUDIO: drawAudioMenu(canvas, soundEnabled); break;
             default: break;
             
         }

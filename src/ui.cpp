@@ -240,9 +240,10 @@ void drawMainMenu(M5Canvas &d) {
         "1) WiFi Settings >",
         "2) Satellite / TLE >",
         "3) Location Setup >",
-        "4) Timezone Setup"
+        "4) Timezone Setup",
+        "5) Audio Config >"  // <--- Added Item 5
     };
-    drawMenu(d, "Configuration", items, 4);
+    drawMenu(d, "Configuration", items, 5);
 }
 
 // 2. The WiFi Sub-Menu
@@ -459,3 +460,28 @@ void drawSatSelector(M5Canvas &d, const char* names[], int ids[], int count, int
     d.print(nav);
     d.setTextColor(COL_TEXT);
 }     
+
+void drawAudioMenu(M5Canvas &d, bool enabled) {
+    drawFrame(d, "Audio Configuration");
+    int y = TEXT_TOP + 20;
+
+    d.setCursor(TEXT_LEFT, y);
+    d.print("1) Sound: ");
+    if (enabled) {
+        d.setTextColor(COL_SAT_PATH);
+        d.println("ON");
+    } else {
+        d.setTextColor(COL_SAT_NOW);
+        d.println("OFF");
+    }
+    d.setTextColor(COL_TEXT);
+    
+    y += LINE_SPACING;
+    d.setCursor(TEXT_LEFT, y);
+    d.println("2) Test Beep (Press to hear)");
+
+    // Footer
+    d.setTextColor(COL_ACCENT);
+    d.setCursor(TEXT_LEFT, d.height() - 25);
+    d.print("Press ESC to return");
+}

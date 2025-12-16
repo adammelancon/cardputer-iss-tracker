@@ -6,6 +6,24 @@
 // App Version
 #define APP_VERSION "v2.5.5"
 
+// --- AUDIO CONFIGURATION (AOS MELODY) ---
+// Define a 4-note rising sequence (Sci-Fi style)
+// Frequencies are in Hz, Durations in ms
+
+#define NOTE_1_FREQ   880   // A5
+#define NOTE_1_DUR    100
+
+#define NOTE_2_FREQ   1109  // C#6
+#define NOTE_2_DUR    100
+
+#define NOTE_3_FREQ   1318  // E6
+#define NOTE_3_DUR    100
+
+#define NOTE_4_FREQ   1760  // A6 (Long finish)
+#define NOTE_4_DUR    400
+
+#define NOTE_GAP      50    // Silence between notes
+
 // ---------- Colors ----------
 #define COL_BG        0x0000  // Black
 #define COL_ACCENT    0x0018  // Deep NASA blue

@@ -16,3 +16,4 @@ void drawLocationMenu(M5Canvas &d, double lat, double lon, bool useGps, bool gps
 void drawGpsInfoScreen(M5Canvas &d, TinyGPSPlus &gps);
 void drawSatSelector(M5Canvas &d, const char* names[], int ids[], int count);
 void drawSatSelector(M5Canvas &d, const char* names[], int ids[], int count, int offset);
+void drawAudioMenu(M5Canvas &d, bool enabled);
