@@ -61,7 +61,7 @@ More can be found at https://www.n2yo.com/
 
 | GPS Status | |
 | :---: | :---: |
-| <img src="images/GPSStatus.jpg" width="300" alt="Options"> |  |
+| <img src="images/GPSStatus.jpg" width="300" alt="Options"> |  <img src="images/Location1.jpg" width="300" alt="Location"> |
 
 ## Using the polar plot view
 - Imagine you are looking down at a compass.
