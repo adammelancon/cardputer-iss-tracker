@@ -2,9 +2,9 @@
   <img src="images/logo.png" width="150" alt="ISS Tracker Logo">
 </p>
 
-# Cardputer Adv ISS/Satellite Tracker
+# [Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv) ISS/Satellite Tracker
 
-I was looking for a unique project for my Cardputer Adv, and as a ham radio operator, I wanted a dedicated tool to track the ISS (and now **any** satellite) without needing my phone. So, I wrote this Tracker.
+I was looking for a unique project for my [Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv), and as a ham radio operator, I wanted a dedicated tool to track the ISS (and now **any** satellite) without needing my phone. So, I wrote this Tracker.
 
 It calculates live positions and future passes for the ISS or any other object in the NORAD catalog in real-time.
 
@@ -85,7 +85,7 @@ You will find these plots in other applications like Gpredict or satellite track
 
 ## Hardware
 
-- M5Stack Cardputer ADV  
+- M5Stack [Cardputer Adv](https://docs.m5stack.com/en/core/Cardputer-Adv)  
 - USB-C cable
 - (Optional) M5Stack LoRa868/GPS Module for automatic location
 
