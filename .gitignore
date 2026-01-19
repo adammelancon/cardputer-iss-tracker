@@ -29,3 +29,6 @@ src/credentials.h
 config_local.h
 secrets.h
 wifi_secrets.h
+
+# Project Context
+GEMINI.md

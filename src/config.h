@@ -4,7 +4,7 @@
 #include <M5GFX.h>
 
 // App Version
-#define APP_VERSION "v2.5.5"
+#define APP_VERSION "v2.5.6"
 
 // --- AUDIO CONFIGURATION (AOS MELODY) ---
 // Define a 4-note rising sequence (Sci-Fi style)
